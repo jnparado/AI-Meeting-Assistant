@@ -1,0 +1,19 @@
+import { DashboardNav } from "@/components/dashboard-nav";
+import { ensureUserWorkspaceFromSession } from "@/lib/org/ensure-workspace";
+
+export const dynamic = "force-dynamic";
+
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  await ensureUserWorkspaceFromSession();
+
+  return (
+    <div className="flex min-h-full flex-1 flex-col bg-muted/20">
+      <DashboardNav />
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</div>
+    </div>
+  );
+}

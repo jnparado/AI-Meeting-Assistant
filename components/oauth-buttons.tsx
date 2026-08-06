@@ -1,0 +1,64 @@
+"use client";
+
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { getAppUrl } from "@/lib/env-client";
+
+type OAuthButtonsProps = {
+  mode: "login" | "signup";
+};
+
+export function OAuthButtons({ mode }: OAuthButtonsProps) {
+  const [loading, setLoading] = useState<"google" | "azure" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function signIn(provider: "google" | "azure") {
+    setLoading(provider);
+    setError(null);
+    const supabase = createClient();
+    const redirectTo = `${getAppUrl()}/auth/callback?next=/dashboard/connect`;
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo },
+    });
+
+    if (oauthError) {
+      setError(oauthError.message);
+      setLoading(null);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <Button
+        type="button"
+        variant="outline"
+        disabled={loading !== null}
+        onClick={() => signIn("google")}
+        className="w-full"
+      >
+        {loading === "google"
+          ? "Redirecting…"
+          : `${mode === "signup" ? "Sign up" : "Continue"} with Google`}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={loading !== null}
+        onClick={() => signIn("azure")}
+        className="w-full"
+      >
+        {loading === "azure"
+          ? "Redirecting…"
+          : `${mode === "signup" ? "Sign up" : "Continue"} with Microsoft`}
+      </Button>
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
