@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export type Organization = {
   id: string;
@@ -10,21 +10,42 @@ export type Organization = {
 const ORG_COOKIE = "active_organization_id";
 
 export async function getUserOrganizations(userId: string): Promise<Organization[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
     .from("organization_members")
-    .select("organizations(id, name, slug)")
+    .select("organization_id, organizations(id, name, slug)")
     .eq("user_id", userId);
 
-  return (
+  if (error) {
+    console.error("getUserOrganizations:", error.message);
+  }
+
+  const fromJoin =
     data
       ?.map((row) => {
         const org = row.organizations as Organization | Organization[] | null;
         if (Array.isArray(org)) return org[0] ?? null;
         return org;
       })
-      .filter((org): org is Organization => Boolean(org)) ?? []
-  );
+      .filter((org): org is Organization => Boolean(org)) ?? [];
+
+  if (fromJoin.length) return fromJoin;
+
+  const orgIds =
+    data?.map((row) => row.organization_id).filter(Boolean) ?? [];
+  if (!orgIds.length) return [];
+
+  const { data: orgRows, error: orgError } = await supabase
+    .from("organizations")
+    .select("id, name, slug")
+    .in("id", orgIds);
+
+  if (orgError) {
+    console.error("getUserOrganizations org fetch:", orgError.message);
+    return [];
+  }
+
+  return orgRows ?? [];
 }
 
 export async function getActiveOrganization(userId: string): Promise<Organization | null> {
@@ -38,7 +59,7 @@ export async function getActiveOrganization(userId: string): Promise<Organizatio
     if (match) return match;
   }
 
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data: profile } = await supabase
     .from("profiles")
     .select("default_organization_id")

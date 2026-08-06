@@ -39,7 +39,10 @@ export async function POST(request: Request) {
     const result = await createMeetingBotForUser(
       user.id,
       organization.id,
-      parsed.data,
+      {
+        ...parsed.data,
+        joinNow: parsed.data.joinNow ?? false,
+      },
     );
 
     return NextResponse.json({
@@ -48,6 +51,7 @@ export async function POST(request: Request) {
       botName: result.botName,
       joinAt: result.joinAt,
       externalBotId: result.bot.external_bot_id,
+      resolvedMeetingUrl: result.resolvedMeetingUrl,
     });
   } catch (err) {
     if (err instanceof SubscriptionError) {

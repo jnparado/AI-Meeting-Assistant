@@ -5,6 +5,7 @@ import { getActiveOrganization } from "@/lib/org/server";
 import { SyncCalendarButton } from "@/components/sync-calendar-button";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { GoogleOAuthSetupHelp } from "@/components/google-oauth-setup-help";
 import {
   Card,
   CardContent,
@@ -52,10 +53,13 @@ export default async function ConnectCalendarPage({
         )}
         {params.error && (
           <p className="mt-2 text-sm text-destructive">
-            Calendar connection failed. Check OAuth credentials and try again.
+            Calendar connection failed. Check OAuth credentials and redirect URIs
+            below, then try again.
           </p>
         )}
       </div>
+
+      <GoogleOAuthSetupHelp />
 
       <Card>
         <CardHeader>
@@ -92,7 +96,7 @@ export default async function ConnectCalendarPage({
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             <SyncCalendarButton />
-            <Link href="/dashboard" className={cn(buttonVariants())}>
+            <Link href="/dashboard/meetings" className={cn(buttonVariants())}>
               Go to dashboard
             </Link>
           </CardContent>

@@ -1,6 +1,4 @@
 import { createServiceClient } from "@/lib/supabase/server";
-import { ORG_COOKIE } from "@/lib/org/server";
-import { cookies } from "next/headers";
 
 function slugify(name: string, userId: string): string {
   const base = name
@@ -65,7 +63,13 @@ export async function ensureUserWorkspace(
   });
 
   await supabase.from("subscriptions").upsert(
-    { organization_id: org.id },
+    {
+      organization_id: org.id,
+      status: "trialing",
+      plan: "free",
+      meeting_credits_included: 100,
+      meeting_credits_used: 0,
+    },
     { onConflict: "organization_id" },
   );
 
@@ -101,21 +105,8 @@ export async function ensureUserWorkspaceFromSession() {
     organization_name?: string;
   };
 
-  const result = await ensureUserWorkspace(user.id, user.email, {
+  return await ensureUserWorkspace(user.id, user.email, {
     full_name: meta.full_name,
     organization_name: meta.organization_name,
   });
-
-  if (result?.organizationId) {
-    const cookieStore = await cookies();
-    cookieStore.set(ORG_COOKIE, result.organizationId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365,
-    });
-  }
-
-  return result;
 }

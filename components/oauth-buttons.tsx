@@ -16,16 +16,24 @@ export function OAuthButtons({ mode }: OAuthButtonsProps) {
   async function signIn(provider: "google" | "azure") {
     setLoading(provider);
     setError(null);
-    const supabase = createClient();
-    const redirectTo = `${getAppUrl()}/auth/callback?next=/dashboard/connect`;
 
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo },
-    });
+    try {
+      const supabase = createClient();
+      const redirectTo = `${getAppUrl()}/auth/callback?next=${encodeURIComponent(
+        mode === "signup" ? "/dashboard/connect" : "/dashboard/meetings",
+      )}`;
 
-    if (oauthError) {
-      setError(oauthError.message);
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo },
+      });
+
+      if (oauthError) {
+        setError(oauthError.message);
+        setLoading(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "OAuth unavailable");
       setLoading(null);
     }
   }

@@ -8,7 +8,11 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await ensureUserWorkspaceFromSession();
+  try {
+    await ensureUserWorkspaceFromSession();
+  } catch (error) {
+    console.error("ensureUserWorkspaceFromSession failed", error);
+  }
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-muted/20">

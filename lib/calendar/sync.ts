@@ -13,6 +13,7 @@ import {
   type CalendarConnectionRow,
 } from "@/lib/calendar/connection-tokens";
 import { createServiceClient } from "@/lib/supabase/server";
+import { meetingRowProvider } from "@/lib/meetings/provider";
 
 export async function syncUserCalendars(userId: string, organizationId: string) {
   const supabase = createServiceClient();
@@ -90,6 +91,7 @@ export async function syncUserCalendars(userId: string, organizationId: string) 
           ends_at: event.endsAt,
           meeting_url: event.meetingUrl,
           platform: event.platform,
+          provider: meetingRowProvider(event.meetingUrl ?? "", event.platform),
           organizer_email: event.organizerEmail,
           attendees: event.attendees,
           raw_event: event.raw,

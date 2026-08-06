@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { ORG_COOKIE } from "@/lib/org/server";
 import { ensureUserWorkspace } from "@/lib/org/ensure-workspace";
+import { ORG_COOKIE } from "@/lib/org/server";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = searchParams.get("next") ?? "/dashboard/meetings";
 
   if (code) {
     const supabase = await createClient();
@@ -27,16 +27,7 @@ export async function GET(request: Request) {
           organization_name: meta.organization_name,
         });
 
-        const orgId =
-          workspace?.organizationId ??
-          (
-            await supabase
-              .from("profiles")
-              .select("default_organization_id")
-              .eq("id", user.id)
-              .maybeSingle()
-          ).data?.default_organization_id;
-
+        const orgId = workspace?.organizationId;
         if (orgId) {
           const cookieStore = await cookies();
           cookieStore.set(ORG_COOKIE, orgId, {

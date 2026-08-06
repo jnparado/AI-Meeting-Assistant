@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/lib/org/server";
+import { meetingRowProvider } from "@/lib/meetings/provider";
 
 export async function POST() {
   const supabase = await createClient();
@@ -51,6 +52,7 @@ export async function POST() {
         ends_at: ends.toISOString(),
         meeting_url: demo.meeting_url,
         platform: demo.platform,
+        provider: meetingRowProvider(demo.meeting_url, demo.platform),
         description: "Demo calendar event",
         attendees: [],
       },

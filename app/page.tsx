@@ -27,7 +27,13 @@ export default function Home() {
             Zoom, or Teams — record, transcribe, summarize, and follow up
             automatically.
           </p>
-          <Link href="/signup" className={cn(buttonVariants({ size: "lg" }))}>
+          <Link href="/join" className={cn(buttonVariants({ size: "lg" }))}>
+            Join a meeting with AI
+          </Link>
+          <Link
+            href="/signup"
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+          >
             Sign up free
           </Link>
         </div>

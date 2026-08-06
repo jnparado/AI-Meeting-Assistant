@@ -60,7 +60,7 @@ export default async function MeetingDetailPage({
   return (
     <div className="space-y-6">
       <Link
-        href="/dashboard"
+        href="/dashboard/meetings"
         className="text-sm text-muted-foreground hover:text-foreground"
       >
         ← Back to dashboard

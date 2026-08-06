@@ -31,6 +31,7 @@ export const createMeetingBotSchema = z.object({
   meetingUrl: z.string().url().max(2048),
   botName: z.string().min(2).max(120).optional(),
   joinAt: z.string().datetime().optional(),
+  joinNow: z.boolean().optional(),
 });
 
 export type CreateMeetingBotInput = z.infer<typeof createMeetingBotSchema>;

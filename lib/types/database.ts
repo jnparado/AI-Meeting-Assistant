@@ -35,6 +35,7 @@ export type MeetingRow = {
   ends_at: string;
   meeting_url: string | null;
   platform: MeetingPlatform;
+  provider?: CalendarProvider;
   ai_assistant_enabled: boolean;
 };
 

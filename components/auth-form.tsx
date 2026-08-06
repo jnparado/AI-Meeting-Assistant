@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import {
+  resetPasswordAction,
+  signInAction,
+  signUpAction,
+  type AuthActionState,
+} from "@/lib/auth/actions";
+import { OAuthButtons } from "@/components/oauth-buttons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { OAuthButtons } from "@/components/oauth-buttons";
 import {
   Card,
   CardContent,
@@ -16,56 +20,71 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+const initialState: AuthActionState = {};
+
 type AuthFormProps = {
   mode: "login" | "signup";
+  callbackError?: string | null;
+  redirectAfter?: string;
 };
 
-export function AuthForm({ mode }: AuthFormProps) {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [organizationName, setOrganizationName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+export function AuthForm({ mode, callbackError, redirectAfter }: AuthFormProps) {
+  const action = mode === "signup" ? signUpAction : signInAction;
+  const [state, formAction, pending] = useActionState(action, initialState);
+  const [showReset, setShowReset] = useState(false);
+  const [resetState, resetAction, resetPending] = useActionState(
+    resetPasswordAction,
+    initialState,
+  );
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    const supabase = createClient();
+  const error = state.error ?? resetState.error ?? callbackError ?? null;
+  const success = state.success ?? resetState.success ?? null;
 
-    if (mode === "signup") {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            organization_name: organizationName,
-          },
-        },
-      });
-      if (signUpError) {
-        setError(signUpError.message);
-        setLoading(false);
-        return;
-      }
-      router.push("/dashboard/connect");
-    } else {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (signInError) {
-        setError(signInError.message);
-        setLoading(false);
-        return;
-      }
-      router.push("/dashboard");
-    }
-
-    router.refresh();
+  if (showReset && mode === "login") {
+    return (
+      <Card className="w-full max-w-md border-border/60 shadow-sm">
+        <CardHeader>
+          <CardTitle>Reset password</CardTitle>
+          <CardDescription>
+            We&apos;ll email you a link to choose a new password.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={resetAction} className="flex flex-col gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">Email</Label>
+              <Input
+                id="reset-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            )}
+            {success && (
+              <p className="text-sm text-primary" role="status">
+                {success}
+              </p>
+            )}
+            <Button type="submit" disabled={resetPending} className="w-full">
+              {resetPending ? "Sending…" : "Send reset link"}
+            </Button>
+            <button
+              type="button"
+              className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+              onClick={() => setShowReset(false)}
+            >
+              Back to sign in
+            </button>
+          </form>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -74,8 +93,8 @@ export function AuthForm({ mode }: AuthFormProps) {
         <CardTitle>{mode === "signup" ? "Create account" : "Sign in"}</CardTitle>
         <CardDescription>
           {mode === "signup"
-            ? "Email, Google, or Microsoft — each company gets its own workspace."
-            : "Welcome back."}
+            ? "Create your company workspace with Supabase Auth."
+            : "Sign in with your Supabase account."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -85,18 +104,21 @@ export function AuthForm({ mode }: AuthFormProps) {
             <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">or</span>
+            <span className="bg-card px-2 text-muted-foreground">or email</span>
           </div>
         </div>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <form action={formAction} className="flex flex-col gap-4">
+          {mode === "login" && redirectAfter ? (
+            <input type="hidden" name="next" value={redirectAfter} />
+          ) : null}
           {mode === "signup" && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="name">Full name</Label>
                 <Input
                   id="name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  name="fullName"
+                  autoComplete="name"
                   required
                 />
               </div>
@@ -104,8 +126,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                 <Label htmlFor="company">Company name</Label>
                 <Input
                   id="company"
-                  value={organizationName}
-                  onChange={(e) => setOrganizationName(e.target.value)}
+                  name="organizationName"
                   placeholder="Acme Inc."
                   required
                 />
@@ -116,10 +137,9 @@ export function AuthForm({ mode }: AuthFormProps) {
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
+              name="email"
               type="email"
               autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
@@ -127,12 +147,11 @@ export function AuthForm({ mode }: AuthFormProps) {
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
+              name="password"
               type="password"
               autoComplete={
                 mode === "signup" ? "new-password" : "current-password"
               }
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
             />
@@ -142,13 +161,36 @@ export function AuthForm({ mode }: AuthFormProps) {
               {error}
             </p>
           )}
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading
+          {success && (
+            <p className="text-sm text-primary" role="status">
+              {success}
+            </p>
+          )}
+          {state.needsEmailConfirmation && (
+            <p className="text-sm text-muted-foreground">
+              After confirming,{" "}
+              <Link href="/login" className="text-primary underline-offset-4 hover:underline">
+                sign in here
+              </Link>
+              .
+            </p>
+          )}
+          <Button type="submit" disabled={pending} className="w-full">
+            {pending
               ? "Please wait…"
               : mode === "signup"
                 ? "Sign up with email"
                 : "Sign in with email"}
           </Button>
+          {mode === "login" && (
+            <button
+              type="button"
+              className="text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
+              onClick={() => setShowReset(true)}
+            >
+              Forgot password?
+            </button>
+          )}
           <p className="text-center text-sm text-muted-foreground">
             {mode === "signup" ? (
               <>

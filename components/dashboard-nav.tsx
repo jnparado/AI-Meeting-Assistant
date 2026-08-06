@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { DashboardNavLinks } from "@/components/dashboard-nav-links";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -20,7 +21,10 @@ export async function DashboardNav() {
     <header className="border-b border-border/60 bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="font-semibold tracking-tight">
+          <Link
+            href="/dashboard/meetings"
+            className="font-semibold tracking-tight hover:opacity-80"
+          >
             MeetMind
           </Link>
           {activeOrg && organizations.length > 0 && (
@@ -31,24 +35,7 @@ export async function DashboardNav() {
           )}
         </div>
         <nav className="flex items-center gap-2 text-sm">
-          <Link
-            href="/dashboard"
-            className="rounded-md px-3 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            Meetings
-          </Link>
-          <Link
-            href="/dashboard/connect"
-            className="rounded-md px-3 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            Calendar
-          </Link>
-          <Link
-            href="/dashboard/settings"
-            className="rounded-md px-3 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            Settings
-          </Link>
+          <DashboardNavLinks />
           <form action="/api/auth/signout" method="post">
             <SignOutButton email={user?.email} />
           </form>
