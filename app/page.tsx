@@ -47,9 +47,9 @@ export default function Home() {
               turns it into clear summaries — without juggling tabs or manual notes.
             </p>
             <div className="flex flex-wrap gap-3">
-              <Link href="/join" className={cn(buttonVariants({ size: "lg" }))}>
-                Join a meeting now
-              </Link>
+          <Link href="/login?next=/join" className={cn(buttonVariants({ size: "lg" }))}>
+            Join a meeting now
+          </Link>
               <Link
                 href="/signup"
                 className={cn(buttonVariants({ variant: "outline", size: "lg" }))}

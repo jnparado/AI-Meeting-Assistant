@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireActiveOrganization, ORG_COOKIE } from "@/lib/org/server";
 import { ensureUserWorkspace } from "@/lib/org/ensure-workspace";
 import { joinMeetingNow } from "@/lib/bot/join-meeting-now";
@@ -101,9 +101,29 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  const supabase = createServiceClient();
+  const checks: Record<string, string> = {};
+
+  for (const fn of [
+    "meetmind_create_adhoc_meeting",
+    "meetmind_insert_meeting_bot",
+    "meetmind_prepare_meeting_join",
+    "meetmind_ensure_active_subscription",
+  ] as const) {
+    const { error } = await supabase.rpc(fn as string, {} as never);
+    const msg = error?.message ?? "";
+    const missing =
+      /could not find the function|does not exist|schema cache/i.test(msg) &&
+      msg.includes(fn);
+    checks[fn] = missing
+      ? "missing — run supabase/RUN_IN_SQL_EDITOR.sql in Supabase SQL Editor"
+      : "installed";
+  }
+
   return NextResponse.json({
     recallConfigured: hasRecall(),
     mode: hasRecall() ? "live" : "simulation",
+    databaseFunctions: checks,
     docs: "https://docs.recall.ai/",
   });
 }

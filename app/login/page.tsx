@@ -9,12 +9,13 @@ import { MarketingShell } from "@/components/marketing-shell";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string; next?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; next?: string; redirect?: string }>;
 }) {
   const params = await searchParams;
+  const nextParam = params.next ?? params.redirect;
   const afterLogin =
-    params.next?.startsWith("/") && !params.next.startsWith("//")
-      ? params.next
+    nextParam?.startsWith("/") && !nextParam.startsWith("//")
+      ? nextParam
       : "/join";
   const config = getPublicSupabaseConfig();
 
@@ -51,6 +52,7 @@ export default async function LoginPage({
           mode="login"
           callbackError={callbackError}
           redirectAfter={afterLogin}
+          supabaseConfigured={config.configured}
         />
         <GoogleOAuthSetupHelp />
         {params.message && (

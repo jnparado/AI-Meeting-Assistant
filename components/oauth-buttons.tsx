@@ -3,44 +3,60 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { getAppUrl } from "@/lib/env-client";
 
 type OAuthButtonsProps = {
   mode: "login" | "signup";
   redirectAfter?: string;
+  supabaseConfigured: boolean;
 };
 
-export function OAuthButtons({ mode, redirectAfter }: OAuthButtonsProps) {
+export function OAuthButtons({
+  mode,
+  redirectAfter,
+  supabaseConfigured,
+}: OAuthButtonsProps) {
   const [loading, setLoading] = useState<"google" | "azure" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function signIn(provider: "google" | "azure") {
+    if (!supabaseConfigured) {
+      setError(
+        "Supabase env vars are missing on this site. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel.",
+      );
+      return;
+    }
+
     setLoading(provider);
     setError(null);
 
     try {
       const supabase = createClient();
-      const next =
-        redirectAfter ??
-        (mode === "signup" ? "/join" : "/join");
-      const redirectTo = `${getAppUrl()}/auth/callback?next=${encodeURIComponent(next)}`;
+      const next = redirectAfter ?? "/join";
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo },
+        options: {
+          redirectTo,
+          skipBrowserRedirect: false,
+        },
       });
 
       if (oauthError) {
         const msg = oauthError.message.toLowerCase();
         if (msg.includes("provider") && msg.includes("not enabled")) {
           setError(
-            "Google sign-in is off in Supabase. Enable it under Authentication → Providers → Google (see setup steps below).",
+            "Enable Google in Supabase → Authentication → Providers, and add the Supabase callback URL in Google Cloud.",
           );
         } else {
           setError(oauthError.message);
         }
         setLoading(null);
         return;
+      }
+
+      if (data?.url) {
+        window.location.href = data.url;
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "OAuth unavailable");

@@ -137,7 +137,7 @@ export async function createMeetingBotForUser(
       joinNow: Boolean(input.joinNow),
     });
 
-    await supabase
+    const { error: metaError } = await supabase
       .from("meeting_bots")
       .update({
         external_bot_id: scheduled.externalBotId,
@@ -150,6 +150,14 @@ export async function createMeetingBotForUser(
         },
       })
       .eq("id", botId);
+
+    if (metaError) {
+      await supabase.rpc("meetmind_set_bot_schedule", {
+        p_bot_id: botId,
+        p_external_bot_id: scheduled.externalBotId,
+        p_provider: scheduled.provider,
+      });
+    }
 
     await consumeMeetingCredit(organizationId);
 

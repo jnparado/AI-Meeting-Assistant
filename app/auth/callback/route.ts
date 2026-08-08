@@ -7,7 +7,11 @@ import { ORG_COOKIE } from "@/lib/org/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard/meetings";
+  const nextParam = searchParams.get("next") ?? "/join";
+  const next =
+    nextParam.startsWith("/") && !nextParam.startsWith("//")
+      ? nextParam
+      : "/join";
 
   if (code) {
     const supabase = await createClient();

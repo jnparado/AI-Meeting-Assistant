@@ -33,7 +33,7 @@ export default async function SignupPage() {
           </p>
         </div>
         <SupabaseAuthStatus configured={config.configured} projectUrl={config.url} />
-        <AuthForm mode="signup" redirectAfter="/join" />
+        <AuthForm mode="signup" supabaseConfigured={config.configured} />
         <GoogleOAuthSetupHelp />
       </main>
     </MarketingShell>

@@ -41,7 +41,7 @@ export function MarketingShell({
               >
                 Sign in
               </Link>
-              <Link href="/join" className={cn(buttonVariants({ size: "sm" }))}>
+              <Link href="/login?next=/join" className={cn(buttonVariants({ size: "sm" }))}>
                 Join with AI
               </Link>
             </div>

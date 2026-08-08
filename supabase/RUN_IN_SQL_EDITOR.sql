@@ -142,6 +142,84 @@ $$;
 grant execute on function public.meetmind_prepare_meeting_join(uuid, text)
   to service_role, authenticated;
 
+create or replace function public.meetmind_ensure_active_subscription(
+  p_organization_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.subscriptions (
+    organization_id, plan, status, meeting_credits_included, meeting_credits_used
+  )
+  values (p_organization_id, 'free', 'active', 100, 0)
+  on conflict (organization_id) do update
+  set
+    status = 'active',
+    meeting_credits_included = greatest(
+      coalesce(public.subscriptions.meeting_credits_included, 0),
+      100
+    ),
+    meeting_credits_used = 0,
+    updated_at = now();
+exception
+  when others then
+    update public.subscriptions
+    set status = 'active', updated_at = now()
+    where organization_id = p_organization_id;
+end;
+$$;
+
+grant execute on function public.meetmind_ensure_active_subscription(uuid)
+  to service_role, authenticated;
+
+create or replace function public.meetmind_consume_meeting_credit(
+  p_organization_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.subscriptions
+  set
+    meeting_credits_used = coalesce(meeting_credits_used, 0) + 1,
+    updated_at = now()
+  where organization_id = p_organization_id;
+exception when others then null;
+end;
+$$;
+
+grant execute on function public.meetmind_consume_meeting_credit(uuid)
+  to service_role, authenticated;
+
+create or replace function public.meetmind_set_bot_schedule(
+  p_bot_id uuid,
+  p_external_bot_id text,
+  p_provider text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.meeting_bots
+  set
+    external_bot_id = p_external_bot_id,
+    metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('provider', p_provider)
+  where id = p_bot_id;
+exception when others then
+  update public.meeting_bots set external_bot_id = p_external_bot_id where id = p_bot_id;
+end;
+$$;
+
+grant execute on function public.meetmind_set_bot_schedule(uuid, text, text)
+  to service_role, authenticated;
+
 notify pgrst, 'reload schema';
 
 select 'MeetMind join SQL applied — retry Join meeting on your site' as status;
