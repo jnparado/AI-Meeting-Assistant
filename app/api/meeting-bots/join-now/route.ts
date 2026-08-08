@@ -86,7 +86,10 @@ export async function POST(request: Request) {
       );
     }
     let message = err instanceof Error ? err.message : "Join failed";
-    if (/schema cache/i.test(message)) {
+    if (/null value in column "provider"/i.test(message)) {
+      message =
+        "Meeting provider column error. In Supabase SQL Editor, run supabase/migrations/009_meetmind_rpc_provider.sql, redeploy the app, then try again.";
+    } else if (/schema cache/i.test(message)) {
       message =
         "Run supabase/fix_join_flow.sql once in Supabase SQL Editor (includes DB functions), then restart npm run dev and try again.";
     } else if (/no organization found/i.test(message)) {

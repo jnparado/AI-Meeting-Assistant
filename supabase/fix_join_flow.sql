@@ -276,18 +276,36 @@ begin
       'google_meet'::public.meeting_provider
     )
     returning id into v_id;
-  exception
-    when others then
-      insert into public.meetings (
-        user_id, organization_id, external_calendar_id, title,
-        starts_at, ends_at, meeting_url
-      )
-      values (
-        p_user_id, p_organization_id, p_external_calendar_id, p_title,
-        v_start, v_end, p_meeting_url
-      )
-      returning id into v_id;
+    return v_id;
+  exception when others then null;
   end;
+
+  begin
+    insert into public.meetings (
+      user_id, organization_id, external_calendar_id, title,
+      starts_at, ends_at, meeting_url, platform, provider
+    )
+    values (
+      p_user_id, p_organization_id, p_external_calendar_id, p_title,
+      v_start, v_end, p_meeting_url,
+      'google_meet'::public.meeting_platform,
+      'google'::public.calendar_provider
+    )
+    returning id into v_id;
+    return v_id;
+  exception when others then null;
+  end;
+
+  insert into public.meetings (
+    user_id, organization_id, external_calendar_id, title,
+    starts_at, ends_at, meeting_url, provider
+  )
+  values (
+    p_user_id, p_organization_id, p_external_calendar_id, p_title,
+    v_start, v_end, p_meeting_url, 'google_meet'
+  )
+  returning id into v_id;
+
   return v_id;
 end;
 $$;

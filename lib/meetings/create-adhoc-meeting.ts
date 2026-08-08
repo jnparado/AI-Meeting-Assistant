@@ -1,4 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import { detectMeetingPlatform } from "@/lib/calendar/parse-meeting-url";
+import { meetingRowProvider } from "@/lib/meetings/provider";
 
 type CreateAdhocParams = {
   userId: string;
@@ -14,6 +16,8 @@ export async function createAdhocMeetingRow(
 ): Promise<string> {
   const supabase = createServiceClient();
   const title = params.title ?? "Live Google Meet";
+  const platform = detectMeetingPlatform(params.meetingUrl);
+  const providerMeet = meetingRowProvider(params.meetingUrl, platform);
 
   const { data: rpcId, error: rpcError } = await supabase.rpc(
     "meetmind_create_adhoc_meeting",
@@ -30,7 +34,7 @@ export async function createAdhocMeetingRow(
     return String(rpcId);
   }
 
-  if (rpcError && !/meetmind_create_adhoc_meeting/i.test(rpcError.message)) {
+  if (rpcError) {
     console.warn("createAdhocMeetingRow rpc:", rpcError.message);
   }
 
@@ -45,13 +49,29 @@ export async function createAdhocMeetingRow(
       starts_at: now.toISOString(),
       ends_at: ends.toISOString(),
       meeting_url: params.meetingUrl,
+      platform,
+      provider: providerMeet,
     },
     {
       user_id: params.userId,
       organization_id: params.organizationId,
       external_calendar_id: params.externalCalendarId,
       title,
+      starts_at: now.toISOString(),
+      ends_at: ends.toISOString(),
       meeting_url: params.meetingUrl,
+      platform,
+      provider: "google",
+    },
+    {
+      user_id: params.userId,
+      organization_id: params.organizationId,
+      external_calendar_id: params.externalCalendarId,
+      title,
+      starts_at: now.toISOString(),
+      ends_at: ends.toISOString(),
+      meeting_url: params.meetingUrl,
+      provider: providerMeet,
     },
   ];
 
@@ -67,13 +87,17 @@ export async function createAdhocMeetingRow(
       return data.id as string;
     }
     lastError = error?.message;
-    if (!lastError?.includes("schema cache")) {
+    if (
+      lastError &&
+      !/schema cache/i.test(lastError) &&
+      !/invalid input value for enum/i.test(lastError)
+    ) {
       break;
     }
   }
 
   throw new Error(
     lastError ??
-      "Could not create meeting. Run supabase/fix_join_flow.sql in Supabase SQL Editor.",
+      "Could not create meeting. Run supabase/migrations/009_meetmind_rpc_provider.sql in Supabase SQL Editor.",
   );
 }
