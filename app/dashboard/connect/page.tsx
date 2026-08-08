@@ -13,6 +13,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+export const dynamic = "force-dynamic";
+
 export default async function ConnectCalendarPage({
   searchParams,
 }: {
@@ -93,7 +95,7 @@ export default async function ConnectCalendarPage({
           <CardContent className="flex flex-wrap gap-3">
             <SyncCalendarButton />
             <Link href="/dashboard/meetings" className={cn(buttonVariants())}>
-              Go to dashboard
+              Go to meetings
             </Link>
           </CardContent>
         </Card>

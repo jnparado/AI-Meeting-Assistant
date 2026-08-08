@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveOrganization } from "@/lib/org/server";
 import {
@@ -17,7 +17,11 @@ export default async function SettingsPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const organization = await getActiveOrganization(user!.id);
+  if (!user) {
+    redirect("/login?next=/dashboard/settings");
+  }
+
+  const organization = await getActiveOrganization(user.id);
   if (!organization) notFound();
 
   const { data: integrations } = await supabase

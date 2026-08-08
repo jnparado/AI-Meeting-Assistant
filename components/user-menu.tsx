@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { SignOutButton } from "@/components/sign-out-button";
 import {
   CircleHelp,
   LayoutList,
-  LogOut,
   Settings,
   Shield,
   User,
@@ -24,11 +24,11 @@ type UserMenuProps = {
 };
 
 const menuItems = [
-  { href: "/dashboard/meetings", label: "Profile", icon: User },
+  { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/dashboard/meetings", label: "My meetings", icon: LayoutList },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
-  { href: "/dashboard/connect", label: "Help", icon: CircleHelp },
-  { href: "/dashboard/settings", label: "Privacy center", icon: Shield },
+  { href: "/dashboard/help", label: "Help", icon: CircleHelp },
+  { href: "/dashboard/privacy", label: "Privacy center", icon: Shield },
 ] as const;
 
 export function UserMenu({ email, fullName, className }: UserMenuProps) {
@@ -103,15 +103,7 @@ export function UserMenu({ email, fullName, className }: UserMenuProps) {
             ))}
           </ul>
           <div className="border-t border-border px-4 py-3">
-            <form action="/api/auth/signout" method="post">
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-2 text-sm font-medium text-primary hover:underline"
-              >
-                <LogOut className="size-4" aria-hidden />
-                Sign out
-              </button>
-            </form>
+            <SignOutButton />
           </div>
         </div>
       ) : null}

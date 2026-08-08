@@ -1,4 +1,4 @@
-import { BrandLogo } from "@/components/brand-logo";
+import { BrandLogoLink } from "@/components/brand-logo-link";
 import { HeaderUserArea } from "@/components/header-user-area";
 
 type MarketingShellProps = {
@@ -29,7 +29,7 @@ export function MarketingShell({
       />
 
       <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-6">
-        <BrandLogo href="/" />
+        <BrandLogoLink />
         {headerRight ?? (showAuthLinks ? <HeaderUserArea /> : null)}
       </header>
 

@@ -47,6 +47,7 @@ export async function updateSession(request: NextRequest) {
       path.startsWith("/api/calendar") ||
       path.startsWith("/api/meetings") ||
       path.startsWith("/api/settings") ||
+      path.startsWith("/api/profile") ||
       path.startsWith("/api/demo") ||
       path.startsWith("/api/org") ||
       path.startsWith("/api/meeting-bots");
