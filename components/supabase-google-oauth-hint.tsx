@@ -26,6 +26,12 @@ export function SupabaseGoogleOAuthHint({ showAlways = true }: Props) {
       <code className="mt-2 block break-all rounded-md border border-border bg-background px-2 py-2 text-xs text-foreground">
         {supabaseSignIn}
       </code>
+      <p className="mt-2 text-xs text-amber-700 dark:text-amber-500">
+        Must end with <code className="text-foreground">/auth/v1/callback</code>.
+        If you only added{" "}
+        <code className="text-foreground">…supabase.co</code> with no path, Google
+        shows &quot;requested path is invalid&quot;.
+      </p>
       <p className="mt-2 text-xs text-muted-foreground">
         Do <strong className="font-medium text-foreground">not</strong> put your app
         URL or <code className="text-xs">/auth/callback</code> in Google redirect
