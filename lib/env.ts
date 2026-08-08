@@ -10,7 +10,14 @@ export function getAppUrl(): string {
   const normalized = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
 
   if (process.env.VERCEL === "1") {
-    return normalized || `https://${process.env.VERCEL_URL}`;
+    if (normalized) return normalized;
+    const prodHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim().replace(
+      /^https?:\/\//,
+      "",
+    );
+    if (prodHost) return `https://${prodHost}`;
+    const vercelHost = process.env.VERCEL_URL?.trim();
+    if (vercelHost) return `https://${vercelHost}`;
   }
 
   if (
