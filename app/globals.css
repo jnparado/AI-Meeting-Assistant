@@ -49,30 +49,31 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --background: oklch(0.985 0.008 264);
+  --foreground: oklch(0.17 0.025 264);
+  --card: oklch(1 0.004 264 / 0.72);
+  --card-foreground: oklch(0.17 0.025 264);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.17 0.025 264);
+  --primary: oklch(0.48 0.2 264);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.02 264);
+  --secondary-foreground: oklch(0.25 0.04 264);
+  --muted: oklch(0.96 0.015 264);
+  --muted-foreground: oklch(0.48 0.03 264);
+  --accent: oklch(0.94 0.04 280);
+  --accent-foreground: oklch(0.28 0.08 264);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --border: oklch(0.9 0.02 264 / 0.85);
+  --input: oklch(0.92 0.015 264);
+  --ring: oklch(0.52 0.18 264);
+  --chart-1: oklch(0.55 0.2 264);
+  --chart-2: oklch(0.6 0.15 280);
+  --chart-3: oklch(0.65 0.12 200);
+  --chart-4: oklch(0.7 0.1 160);
+  --chart-5: oklch(0.75 0.08 40);
+  --radius: 0.75rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -126,5 +127,24 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer utilities {
+  .bg-app-gradient {
+    background: linear-gradient(
+      165deg,
+      oklch(0.97 0.04 264) 0%,
+      oklch(0.99 0.01 280) 45%,
+      oklch(0.98 0.02 220) 100%
+    );
+  }
+
+  .glass-panel {
+    @apply border border-white/60 bg-card/80 shadow-xl shadow-primary/5 backdrop-blur-xl;
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-br from-primary via-violet-600 to-indigo-500 bg-clip-text text-transparent;
   }
 }

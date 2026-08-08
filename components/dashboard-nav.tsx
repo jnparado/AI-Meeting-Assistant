@@ -18,14 +18,14 @@ export async function DashboardNav() {
   const activeOrg = user ? await getActiveOrganization(user.id) : null;
 
   return (
-    <header className="border-b border-border/60 bg-background/80 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-border/50 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/meetings"
             className="font-semibold tracking-tight hover:opacity-80"
           >
-            MeetMind
+            <span className="text-gradient">MeetMind</span>
           </Link>
           {activeOrg && organizations.length > 0 && (
             <OrgSwitcher

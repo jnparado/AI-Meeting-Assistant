@@ -15,7 +15,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-muted/20">
+    <div className="flex min-h-full flex-1 flex-col bg-app-gradient">
       <DashboardNav />
       <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</div>
     </div>

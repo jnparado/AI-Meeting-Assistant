@@ -42,7 +42,7 @@ export function AuthForm({ mode, callbackError, redirectAfter }: AuthFormProps) 
 
   if (showReset && mode === "login") {
     return (
-      <Card className="w-full max-w-md border-border/60 shadow-sm">
+      <Card className="glass-panel w-full max-w-md rounded-2xl">
         <CardHeader>
           <CardTitle>Reset password</CardTitle>
           <CardDescription>
@@ -88,7 +88,7 @@ export function AuthForm({ mode, callbackError, redirectAfter }: AuthFormProps) 
   }
 
   return (
-    <Card className="w-full max-w-md border-border/60 shadow-sm">
+    <Card className="glass-panel w-full max-w-md rounded-2xl">
       <CardHeader>
         <CardTitle>{mode === "signup" ? "Create account" : "Sign in"}</CardTitle>
         <CardDescription>

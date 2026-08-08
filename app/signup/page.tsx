@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getPublicSupabaseConfig } from "@/lib/supabase/config";
 import { AuthForm } from "@/components/auth-form";
 import { SupabaseAuthStatus } from "@/components/supabase-auth-status";
+import { MarketingShell } from "@/components/marketing-shell";
 
 export default async function SignupPage() {
   const config = getPublicSupabaseConfig();
@@ -14,7 +15,7 @@ export default async function SignupPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        redirect("/dashboard/meetings");
+        redirect("/join");
       }
     } catch {
       // show signup form
@@ -22,9 +23,17 @@ export default async function SignupPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-16">
-      <SupabaseAuthStatus configured={config.configured} projectUrl={config.url} />
-      <AuthForm mode="signup" />
-    </div>
+    <MarketingShell showAuthLinks={false}>
+      <main className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pb-20 pt-4 md:pt-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">Create your workspace</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Free to start — connect calendar and join meetings with AI.
+          </p>
+        </div>
+        <SupabaseAuthStatus configured={config.configured} projectUrl={config.url} />
+        <AuthForm mode="signup" />
+      </main>
+    </MarketingShell>
   );
 }

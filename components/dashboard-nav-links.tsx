@@ -29,10 +29,10 @@ export function DashboardNavLinks() {
             href={href}
             prefetch={false}
             className={cn(
-              "rounded-md px-3 py-1.5 transition-colors",
+              "rounded-lg px-3 py-1.5 transition-colors",
               active
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                ? "bg-primary/10 font-medium text-primary"
+                : "text-muted-foreground hover:bg-muted/80 hover:text-foreground",
             )}
           >
             {label}
