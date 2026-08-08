@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getPublicSupabaseConfig } from "@/lib/supabase/config";
 import { AuthForm } from "@/components/auth-form";
 import { SupabaseAuthStatus } from "@/components/supabase-auth-status";
+import { GoogleOAuthSetupHelp } from "@/components/google-oauth-setup-help";
 import { MarketingShell } from "@/components/marketing-shell";
 
 export default async function LoginPage({
@@ -51,6 +52,7 @@ export default async function LoginPage({
           callbackError={callbackError}
           redirectAfter={afterLogin}
         />
+        <GoogleOAuthSetupHelp />
         {params.message && (
           <p className="text-center text-sm text-muted-foreground">{params.message}</p>
         )}

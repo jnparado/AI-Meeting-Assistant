@@ -98,7 +98,7 @@ export function AuthForm({ mode, callbackError, redirectAfter }: AuthFormProps) 
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <OAuthButtons mode={mode} />
+        <OAuthButtons mode={mode} redirectAfter={redirectAfter} />
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t border-border" />

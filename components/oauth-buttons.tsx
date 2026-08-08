@@ -7,9 +7,10 @@ import { getAppUrl } from "@/lib/env-client";
 
 type OAuthButtonsProps = {
   mode: "login" | "signup";
+  redirectAfter?: string;
 };
 
-export function OAuthButtons({ mode }: OAuthButtonsProps) {
+export function OAuthButtons({ mode, redirectAfter }: OAuthButtonsProps) {
   const [loading, setLoading] = useState<"google" | "azure" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,9 +20,10 @@ export function OAuthButtons({ mode }: OAuthButtonsProps) {
 
     try {
       const supabase = createClient();
-      const redirectTo = `${getAppUrl()}/auth/callback?next=${encodeURIComponent(
-        mode === "signup" ? "/dashboard/connect" : "/dashboard/meetings",
-      )}`;
+      const next =
+        redirectAfter ??
+        (mode === "signup" ? "/join" : "/join");
+      const redirectTo = `${getAppUrl()}/auth/callback?next=${encodeURIComponent(next)}`;
 
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
@@ -29,8 +31,16 @@ export function OAuthButtons({ mode }: OAuthButtonsProps) {
       });
 
       if (oauthError) {
-        setError(oauthError.message);
+        const msg = oauthError.message.toLowerCase();
+        if (msg.includes("provider") && msg.includes("not enabled")) {
+          setError(
+            "Google sign-in is off in Supabase. Enable it under Authentication → Providers → Google (see setup steps below).",
+          );
+        } else {
+          setError(oauthError.message);
+        }
         setLoading(null);
+        return;
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "OAuth unavailable");

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getPublicSupabaseConfig } from "@/lib/supabase/config";
 import { AuthForm } from "@/components/auth-form";
 import { SupabaseAuthStatus } from "@/components/supabase-auth-status";
+import { GoogleOAuthSetupHelp } from "@/components/google-oauth-setup-help";
 import { MarketingShell } from "@/components/marketing-shell";
 
 export default async function SignupPage() {
@@ -32,7 +33,8 @@ export default async function SignupPage() {
           </p>
         </div>
         <SupabaseAuthStatus configured={config.configured} projectUrl={config.url} />
-        <AuthForm mode="signup" />
+        <AuthForm mode="signup" redirectAfter="/join" />
+        <GoogleOAuthSetupHelp />
       </main>
     </MarketingShell>
   );

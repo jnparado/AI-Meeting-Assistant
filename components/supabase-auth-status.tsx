@@ -20,17 +20,45 @@ export function SupabaseAuthStatus({ configured, projectUrl }: Props) {
   }
 
   let host = "Connected";
+  let projectRef: string | null = null;
   if (projectUrl) {
     try {
-      host = new URL(projectUrl).hostname;
+      const parsed = new URL(projectUrl);
+      host = parsed.hostname;
+      projectRef = host.split(".")[0] ?? null;
     } catch {
       host = projectUrl;
     }
   }
 
+  const providersUrl = projectRef
+    ? `https://supabase.com/dashboard/project/${projectRef}/auth/providers`
+    : null;
+
   return (
     <p className="text-center text-xs text-muted-foreground" role="status">
-      Supabase Auth · <span className="font-medium text-foreground">{host}</span>
+      Supabase Auth ·{" "}
+      <span className="font-medium text-foreground">{host}</span>
+      {providersUrl && (
+        <>
+          {" "}
+          ·{" "}
+          <a
+            href={providersUrl}
+            className="text-primary underline-offset-4 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Providers
+          </a>
+        </>
+      )}
+      {projectRef && (
+        <span className="mt-1 block text-[0.65rem]">
+          Enable Google on this project ref:{" "}
+          <code className="text-foreground">{projectRef}</code>
+        </span>
+      )}
     </p>
   );
 }
