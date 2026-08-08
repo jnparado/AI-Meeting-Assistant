@@ -1,4 +1,4 @@
-const DEFAULT_AFTER_AUTH = "/join";
+const DEFAULT_AFTER_AUTH = "/dashboard";
 
 /** Allow only same-origin relative paths (no protocol-relative URLs). */
 export function safeNextPath(

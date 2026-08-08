@@ -16,7 +16,7 @@ type Props = {
 };
 
 export function EmailSignInForm({
-  redirectAfter = "/join",
+  redirectAfter = "/dashboard",
   supabaseConfigured,
   onForgotPassword,
 }: Props) {

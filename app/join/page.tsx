@@ -1,10 +1,8 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SimpleAiJoin } from "@/components/simple-ai-join";
 import { MarketingShell } from "@/components/marketing-shell";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { HeaderUserArea } from "@/components/header-user-area";
 
 export default async function JoinPage({
   searchParams,
@@ -23,17 +21,7 @@ export default async function JoinPage({
   const params = await searchParams;
 
   return (
-    <MarketingShell
-      showAuthLinks={false}
-      headerRight={
-        <Link
-          href="/dashboard/meetings"
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-        >
-          My meetings
-        </Link>
-      }
-    >
+    <MarketingShell showAuthLinks={false} headerRight={<HeaderUserArea />}>
       <main className="mx-auto flex max-w-lg flex-col items-center px-4 pb-20 pt-6 md:pt-12">
         <SimpleAiJoin initialUrl={params.url ?? ""} />
         <p className="mt-8 max-w-sm text-center text-xs leading-relaxed text-muted-foreground">

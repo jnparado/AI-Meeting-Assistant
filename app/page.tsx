@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Sparkles, Video, Zap, Calendar, Bot, Mail } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 import { MarketingShell } from "@/components/marketing-shell";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -28,7 +30,16 @@ const steps = [
   { icon: Mail, label: "Share follow-ups" },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    redirect("/dashboard");
+  }
+
   return (
     <MarketingShell>
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 pb-24 pt-4 md:pt-10">
@@ -47,9 +58,12 @@ export default function Home() {
               turns it into clear summaries — without juggling tabs or manual notes.
             </p>
             <div className="flex flex-wrap gap-3">
-          <Link href="/login?next=/join" className={cn(buttonVariants({ size: "lg" }))}>
-            Join a meeting now
-          </Link>
+              <Link
+                href="/login?next=/join"
+                className={cn(buttonVariants({ size: "lg" }))}
+              >
+                Join a meeting now
+              </Link>
               <Link
                 href="/signup"
                 className={cn(buttonVariants({ variant: "outline", size: "lg" }))}

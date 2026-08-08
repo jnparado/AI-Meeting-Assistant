@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getBotSimulationSecret } from "@/lib/env";
 import {
   persistMeetingResults,
   processTranscriptWithAI,
@@ -23,6 +24,19 @@ const STATUS_FLOW: BotStatus[] = [
 ];
 
 export async function POST(request: Request) {
+  const secret = getBotSimulationSecret();
+  if (secret) {
+    const auth = request.headers.get("authorization");
+    if (auth !== `Bearer ${secret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } else if (process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { error: "Set BOT_SIMULATION_SECRET or CRON_SECRET" },
+      { status: 503 },
+    );
+  }
+
   const body = (await request.json()) as SimulationBody;
   const { internalBotId, meetingTitle, botName, delayMs = 0 } = body;
 

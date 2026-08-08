@@ -4,13 +4,21 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AssistantToggle } from "@/components/assistant-toggle";
 import { BotStatusTimeline } from "@/components/bot-status-timeline";
+import { MeetingQnaPanel } from "@/components/meeting-qna-panel";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { ActionItem, BotStatus } from "@/lib/types/database";
+import type { ActionItem, BotStatus, TranscriptSegment } from "@/lib/types/database";
+
+const platformLabel: Record<string, string> = {
+  google_meet: "Google Meet",
+  zoom: "Zoom",
+  teams: "Microsoft Teams",
+  unknown: "Video call",
+};
 
 export default async function MeetingDetailPage({
   params,
@@ -23,7 +31,9 @@ export default async function MeetingDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const organization = await getActiveOrganization(user!.id);
+  if (!user) notFound();
+
+  const organization = await getActiveOrganization(user.id);
   if (!organization) notFound();
 
   const { data: meeting } = await supabase
@@ -55,7 +65,17 @@ export default async function MeetingDetailPage({
     .eq("meeting_id", id)
     .maybeSingle();
 
+  const { data: followUps } = await supabase
+    .from("follow_up_jobs")
+    .select("channel, status, sent_at, error_message")
+    .eq("meeting_id", id)
+    .order("created_at", { ascending: false });
+
+  const segments = (transcript?.segments as TranscriptSegment[] | null) ?? [];
   const when = new Date(meeting.starts_at).toLocaleString();
+  const hasTranscript = Boolean(
+    transcript?.full_text || segments.length > 0,
+  );
 
   return (
     <div className="space-y-6">
@@ -63,11 +83,14 @@ export default async function MeetingDetailPage({
         href="/dashboard/meetings"
         className="text-sm text-muted-foreground hover:text-foreground"
       >
-        ← Back to dashboard
+        ← Back to meetings
       </Link>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {platformLabel[meeting.platform] ?? "Meeting"}
+          </p>
           <h1 className="text-2xl font-semibold">{meeting.title}</h1>
           <p className="text-muted-foreground">{when}</p>
           {meeting.meeting_url && (
@@ -104,6 +127,21 @@ export default async function MeetingDetailPage({
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p>{summary.summary}</p>
+            {(summary.key_topics as string[])?.length > 0 && (
+              <div>
+                <h3 className="font-medium">Key topics</h3>
+                <ul className="mt-1 flex flex-wrap gap-2">
+                  {(summary.key_topics as string[]).map((t) => (
+                    <li
+                      key={t}
+                      className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground"
+                    >
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {summary.decisions?.length > 0 && (
               <div>
                 <h3 className="font-medium">Decisions</h3>
@@ -122,6 +160,7 @@ export default async function MeetingDetailPage({
                     <li key={a.task}>
                       {a.task}
                       {a.owner ? ` — ${a.owner}` : ""}
+                      {a.due ? ` (due ${a.due})` : ""}
                     </li>
                   ))}
                 </ul>
@@ -131,17 +170,67 @@ export default async function MeetingDetailPage({
         </Card>
       )}
 
-      {transcript?.full_text && (
+      <MeetingQnaPanel meetingId={id} hasTranscript={hasTranscript} />
+
+      {followUps && followUps.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Transcript</CardTitle>
+            <CardTitle className="text-base">Follow-ups</CardTitle>
           </CardHeader>
           <CardContent>
-            <pre className="whitespace-pre-wrap text-sm text-muted-foreground">
-              {transcript.full_text}
-            </pre>
+            <ul className="space-y-2 text-sm">
+              {followUps.map((job, i) => (
+                <li
+                  key={`${job.channel}-${i}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-2"
+                >
+                  <span className="capitalize">{job.channel}</span>
+                  <span
+                    className={
+                      job.status === "sent"
+                        ? "text-primary"
+                        : job.status === "failed"
+                          ? "text-destructive"
+                          : "text-muted-foreground"
+                    }
+                  >
+                    {job.status}
+                    {job.error_message ? ` — ${job.error_message}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
+      )}
+
+      {segments.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Transcript (by speaker)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {segments.map((seg, i) => (
+              <div key={`${seg.speaker}-${i}`} className="rounded-lg bg-muted/40 p-3">
+                <p className="text-xs font-medium text-primary">{seg.speaker}</p>
+                <p className="mt-1 text-muted-foreground">{seg.text}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : (
+        transcript?.full_text && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Transcript</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="whitespace-pre-wrap text-sm text-muted-foreground">
+                {transcript.full_text}
+              </pre>
+            </CardContent>
+          </Card>
+        )
       )}
     </div>
   );

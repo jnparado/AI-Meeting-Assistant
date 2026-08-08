@@ -116,6 +116,58 @@ export async function processPendingFollowUps(limit = 20) {
   return { processed };
 }
 
+export async function processFollowUpsForMeeting(meetingId: string) {
+  const supabase = createServiceClient();
+  const { data: jobs } = await supabase
+    .from("follow_up_jobs")
+    .select("*, meetings(title, organization_id)")
+    .eq("meeting_id", meetingId)
+    .eq("status", "pending");
+
+  if (!jobs?.length) return { processed: 0 };
+
+  let processed = 0;
+  for (const job of jobs) {
+    try {
+      const meeting = job.meetings as {
+        title?: string;
+        organization_id?: string;
+      } | null;
+      const title = meeting?.title ?? "Meeting";
+      const insights = job.payload as MeetingInsights;
+      const organizationId = meeting?.organization_id;
+
+      if (!organizationId) {
+        throw new Error("Meeting missing organization");
+      }
+
+      if (job.channel === "email") {
+        await sendEmailFollowUp(organizationId, title, insights);
+      } else if (job.channel === "slack") {
+        await sendSlackFollowUp(organizationId, title, insights);
+      } else if (job.channel === "crm") {
+        await sendCrmFollowUp(organizationId, title, insights);
+      }
+
+      await supabase
+        .from("follow_up_jobs")
+        .update({ status: "sent", sent_at: new Date().toISOString() })
+        .eq("id", job.id);
+      processed++;
+    } catch (err) {
+      await supabase
+        .from("follow_up_jobs")
+        .update({
+          status: "failed",
+          error_message: err instanceof Error ? err.message : "Unknown error",
+        })
+        .eq("id", job.id);
+    }
+  }
+
+  return { processed };
+}
+
 async function sendEmailFollowUp(
   organizationId: string,
   meetingTitle: string,

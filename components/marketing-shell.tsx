@@ -1,5 +1,5 @@
 import { BrandLogo } from "@/components/brand-logo";
-import { MarketingAuthLinks } from "@/components/marketing-auth-links";
+import { HeaderUserArea } from "@/components/header-user-area";
 
 type MarketingShellProps = {
   children: React.ReactNode;
@@ -30,7 +30,7 @@ export function MarketingShell({
 
       <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-6">
         <BrandLogo href="/" />
-        {headerRight ?? (showAuthLinks ? <MarketingAuthLinks /> : null)}
+        {headerRight ?? (showAuthLinks ? <HeaderUserArea /> : null)}
       </header>
 
       <div className="relative z-10">{children}</div>

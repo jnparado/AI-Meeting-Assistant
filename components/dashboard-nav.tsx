@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { DashboardNavLinks } from "@/components/dashboard-nav-links";
 import { OrgSwitcher } from "@/components/org-switcher";
+import { UserMenu } from "@/components/user-menu";
 import { createClient } from "@/lib/supabase/server";
 import {
   getActiveOrganization,
@@ -16,14 +16,15 @@ export async function DashboardNav() {
 
   const organizations = user ? await getUserOrganizations(user.id) : [];
   const activeOrg = user ? await getActiveOrganization(user.id) : null;
+  const meta = user?.user_metadata as { full_name?: string } | undefined;
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-background/70 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-        <div className="flex items-center gap-3">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
+        <div className="flex min-w-0 items-center gap-3">
           <Link
-            href="/dashboard/meetings"
-            className="font-semibold tracking-tight hover:opacity-80"
+            href="/dashboard"
+            className="shrink-0 font-semibold tracking-tight hover:opacity-80"
           >
             <span className="text-gradient">MeetMind</span>
           </Link>
@@ -35,25 +36,18 @@ export async function DashboardNav() {
           )}
         </div>
         <nav className="flex items-center gap-2 text-sm">
-          <DashboardNavLinks />
-          <form action="/api/auth/signout" method="post">
-            <SignOutButton email={user?.email} />
-          </form>
+          <div className="hidden md:contents">
+            <DashboardNavLinks />
+          </div>
+          {user?.email ? (
+            <UserMenu
+              email={user.email}
+              fullName={meta?.full_name ?? null}
+              className="shrink-0"
+            />
+          ) : null}
         </nav>
       </div>
     </header>
-  );
-}
-
-function SignOutButton({ email }: { email?: string | null }) {
-  return (
-    <div className="flex items-center gap-2 pl-2">
-      {email && (
-        <span className="hidden text-muted-foreground lg:inline">{email}</span>
-      )}
-      <Button type="submit" variant="outline" size="sm">
-        Sign out
-      </Button>
-    </div>
   );
 }

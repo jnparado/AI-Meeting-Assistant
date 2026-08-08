@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "seed:test-user": "node --env-file=.env.local scripts/seed-test-user.mjs",
+    "db:fix": "node --env-file=.env.local scripts/apply-join-sql.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -33,6 +34,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "pg": "^8.22.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

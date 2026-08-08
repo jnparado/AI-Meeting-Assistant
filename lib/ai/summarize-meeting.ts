@@ -105,6 +105,10 @@ export async function persistMeetingResults(
     .update({ status: "completed", completed_at: new Date().toISOString() })
     .eq("meeting_id", meetingId);
 
-  const { queueFollowUpsForMeeting } = await import("@/lib/follow-up/dispatch");
+  const { queueFollowUpsForMeeting, processFollowUpsForMeeting } =
+    await import("@/lib/follow-up/dispatch");
   await queueFollowUpsForMeeting(meetingId, userId, insights);
+  await processFollowUpsForMeeting(meetingId).catch((err) => {
+    console.error("processFollowUpsForMeeting failed:", err);
+  });
 }

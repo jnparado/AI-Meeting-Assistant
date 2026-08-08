@@ -28,3 +28,12 @@ export function hasRecall(): boolean {
 export function hasOpenAI(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
 }
+
+/** Protects internal bot simulation webhook (defaults to CRON_SECRET in dev). */
+export function getBotSimulationSecret(): string | null {
+  return (
+    process.env.BOT_SIMULATION_SECRET?.trim() ||
+    process.env.CRON_SECRET?.trim() ||
+    null
+  );
+}

@@ -1,5 +1,6 @@
 import { MarketingShell } from "@/components/marketing-shell";
 import { AuthHeaderLinks } from "@/components/auth-header-links";
+import { UserMenu } from "@/components/user-menu";
 import { AuthForm } from "@/components/auth-form";
 import { SupabaseAuthStatus } from "@/components/supabase-auth-status";
 import { SignedInBanner } from "@/components/signed-in-banner";
@@ -30,7 +31,13 @@ export function AuthPageLayout({
   return (
     <MarketingShell
       showAuthLinks={false}
-      headerRight={<AuthHeaderLinks active={mode} next={redirectAfter} />}
+      headerRight={
+        signedInEmail ? (
+          <UserMenu email={signedInEmail} />
+        ) : (
+          <AuthHeaderLinks active={mode} next={redirectAfter} />
+        )
+      }
     >
       <main className="mx-auto flex min-h-[calc(100dvh-5.5rem)] w-full max-w-md flex-col justify-center gap-5 px-4 pb-16 pt-6 md:pb-20">
         {mode !== "login" ? (

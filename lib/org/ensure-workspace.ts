@@ -77,6 +77,7 @@ export async function ensureUserWorkspace(
     {
       organization_id: org.id,
       notification_email: email ?? null,
+      follow_up_email: Boolean(email),
     },
     { onConflict: "organization_id" },
   );

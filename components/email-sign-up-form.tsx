@@ -16,7 +16,7 @@ type Props = {
 };
 
 export function EmailSignUpForm({
-  redirectAfter = "/join",
+  redirectAfter = "/dashboard",
   supabaseConfigured,
 }: Props) {
   const router = useRouter();

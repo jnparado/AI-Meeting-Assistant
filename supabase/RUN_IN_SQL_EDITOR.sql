@@ -1,5 +1,18 @@
 -- Paste this entire file into Supabase → SQL Editor → Run (once).
 -- Fixes "schema cache" / provider errors on Join meeting.
+-- Or locally: add SUPABASE_DB_URL to .env.local and run `npm run db:fix`
+
+-- Ensure meetings columns exist (safe if already applied)
+alter table public.meetings
+  add column if not exists provider text default 'google';
+
+alter table public.meetings
+  add column if not exists ends_at timestamptz default (now() + interval '1 hour');
+
+alter table public.meetings
+  add column if not exists starts_at timestamptz default now();
+
+update public.meetings set provider = coalesce(provider, 'google') where provider is null;
 
 create or replace function public.meetmind_create_adhoc_meeting(
   p_user_id uuid,
