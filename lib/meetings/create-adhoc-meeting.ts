@@ -35,7 +35,13 @@ export async function createAdhocMeetingRow(
   }
 
   if (rpcError) {
-    console.warn("createAdhocMeetingRow rpc:", rpcError.message);
+    const msg = rpcError.message;
+    if (/meetmind_create_adhoc_meeting|could not find the function/i.test(msg)) {
+      throw new Error(
+        "Database functions missing. In Supabase SQL Editor, run the file supabase/RUN_IN_SQL_EDITOR.sql, then try Join meeting again.",
+      );
+    }
+    console.warn("createAdhocMeetingRow rpc:", msg);
   }
 
   const now = new Date();

@@ -34,4 +34,7 @@ export const createMeetingBotSchema = z.object({
   joinNow: z.boolean().optional(),
 });
 
-export type CreateMeetingBotInput = z.infer<typeof createMeetingBotSchema>;
+export type CreateMeetingBotInput = z.infer<typeof createMeetingBotSchema> & {
+  /** Skip PostgREST meeting row fetch after RPC create (join now). */
+  knownMeeting?: { id: string; title: string; starts_at: string };
+};

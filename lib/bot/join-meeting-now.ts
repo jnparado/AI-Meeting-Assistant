@@ -26,6 +26,18 @@ export async function joinMeetingNow(
       meetingUrl: resolved.meetingUrl,
       externalCalendarId: externalId,
     });
+
+    return createMeetingBotForUser(userId, organizationId, {
+      meetingId: targetMeetingId,
+      meetingUrl,
+      botName,
+      joinNow: true,
+      knownMeeting: {
+        id: targetMeetingId,
+        title: "Live Google Meet",
+        starts_at: now.toISOString(),
+      },
+    });
   }
 
   if (!targetMeetingId) {

@@ -35,64 +35,40 @@ export async function createMeetingBotForUser(
 
   const supabase = createServiceClient();
 
-  let meeting: {
-    id: string;
-    title?: string | null;
-    starts_at?: string | null;
-    organization_id?: string;
-  } | null = null;
+  const meeting =
+    input.knownMeeting ??
+    (await loadMeeting(supabase, input.meetingId, organizationId));
 
-  const { data: meetingRow, error: meetingError } = await supabase
-    .from("meetings")
-    .select("id, title, starts_at, organization_id")
-    .eq("id", input.meetingId)
-    .eq("organization_id", organizationId)
-    .single();
+  if (!meeting) {
+    throw new Error("Meeting not found");
+  }
 
-  if (meetingRow) {
-    meeting = meetingRow;
-  } else if (meetingError?.message.includes("schema cache")) {
-    const { data: minimal } = await supabase
-      .from("meetings")
-      .select("id")
-      .eq("id", input.meetingId)
-      .single();
-    if (minimal) {
-      meeting = {
-        id: minimal.id as string,
-        title: "Live Google Meet",
-        starts_at: new Date().toISOString(),
-      };
+  if (!input.joinNow) {
+    const { data: existingBots } = await supabase
+      .from("meeting_bots")
+      .select("id, status")
+      .eq("meeting_id", meeting.id);
+
+    const active = (existingBots ?? []).find((b) =>
+      !["completed", "failed", "cancelled"].includes(b.status as string),
+    );
+
+    if (active) {
+      throw new Error("An AI assistant is already scheduled for this meeting");
     }
   }
 
-  if (!meeting) {
-    throw new Error(meetingError?.message ?? "Meeting not found");
+  let botName = input.botName?.trim() || DEFAULT_BOT_NAME;
+  if (!input.botName?.trim()) {
+    const { data: orgRow } = await supabase
+      .from("organizations")
+      .select("name, default_bot_name")
+      .eq("id", organizationId)
+      .single();
+    botName =
+      orgRow?.default_bot_name ||
+      (orgRow?.name ? `${orgRow.name} AI Notetaker` : DEFAULT_BOT_NAME);
   }
-
-  const { data: existingBots } = await supabase
-    .from("meeting_bots")
-    .select("id, status")
-    .eq("meeting_id", meeting.id);
-
-  const active = (existingBots ?? []).find((b) =>
-    !["completed", "failed", "cancelled"].includes(b.status as string),
-  );
-
-  if (active) {
-    throw new Error("An AI assistant is already scheduled for this meeting");
-  }
-
-  const { data: orgRow } = await supabase
-    .from("organizations")
-    .select("name, default_bot_name")
-    .eq("id", organizationId)
-    .single();
-
-  const botName =
-    input.botName?.trim() ||
-    orgRow?.default_bot_name ||
-    (orgRow?.name ? `${orgRow.name} AI Notetaker` : DEFAULT_BOT_NAME);
 
   const joinAt = input.joinNow
     ? new Date()
@@ -102,21 +78,10 @@ export async function createMeetingBotForUser(
           (meeting.starts_at as string | null | undefined) ?? new Date().toISOString(),
         );
 
-  await supabase
-    .from("meetings")
-    .update({
-      meeting_url: joinUrl,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", meeting.id);
-
-  void supabase
-    .from("meetings")
-    .update({
-      platform: urlCheck.platform,
-      ai_assistant_enabled: true,
-    })
-    .eq("id", meeting.id);
+  await supabase.rpc("meetmind_prepare_meeting_join", {
+    p_meeting_id: meeting.id,
+    p_meeting_url: joinUrl,
+  });
 
   let bot: Record<string, unknown> | null = null;
 
@@ -131,12 +96,14 @@ export async function createMeetingBotForUser(
   );
 
   if (!rpcBotError && rpcBotId) {
-    const { data: rpcRow } = await supabase
-      .from("meeting_bots")
-      .select("id, meeting_id, user_id, status, scheduled_for, bot_name")
-      .eq("id", rpcBotId)
-      .maybeSingle();
-    if (rpcRow) bot = rpcRow as Record<string, unknown>;
+    bot = {
+      id: rpcBotId,
+      meeting_id: meeting.id,
+      user_id: userId,
+      status: input.joinNow ? "joining" : "scheduled",
+      scheduled_for: joinAt.toISOString(),
+      bot_name: botName,
+    };
   }
 
   if (!bot) {
@@ -220,3 +187,41 @@ function defaultJoinAt(startsAt: string): Date {
 }
 
 export { SubscriptionError };
+
+async function loadMeeting(
+  supabase: ReturnType<typeof createServiceClient>,
+  meetingId: string,
+  organizationId: string,
+): Promise<{ id: string; title: string; starts_at: string } | null> {
+  const { data: meetingRow, error: meetingError } = await supabase
+    .from("meetings")
+    .select("id, title, starts_at, organization_id")
+    .eq("id", meetingId)
+    .eq("organization_id", organizationId)
+    .single();
+
+  if (meetingRow?.id) {
+    return {
+      id: meetingRow.id,
+      title: (meetingRow.title as string) ?? "Meeting",
+      starts_at: (meetingRow.starts_at as string) ?? new Date().toISOString(),
+    };
+  }
+
+  if (meetingError?.message.includes("schema cache")) {
+    const { data: minimal } = await supabase
+      .from("meetings")
+      .select("id")
+      .eq("id", meetingId)
+      .single();
+    if (minimal?.id) {
+      return {
+        id: minimal.id as string,
+        title: "Live Google Meet",
+        starts_at: new Date().toISOString(),
+      };
+    }
+  }
+
+  return null;
+}

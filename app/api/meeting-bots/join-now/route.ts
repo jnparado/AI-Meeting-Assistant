@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         "Meeting provider column error. In Supabase SQL Editor, run supabase/migrations/009_meetmind_rpc_provider.sql, redeploy the app, then try again.";
     } else if (/schema cache/i.test(message)) {
       message =
-        "Run supabase/fix_join_flow.sql once in Supabase SQL Editor (includes DB functions), then restart npm run dev and try again.";
+        "Supabase needs a one-time SQL fix. Open Supabase → SQL Editor, paste and run the full file supabase/RUN_IN_SQL_EDITOR.sql from your repo, then try Join meeting again (no npm restart needed on Vercel).";
     } else if (/no organization found/i.test(message)) {
       message =
         "No workspace linked to your account. In Supabase SQL Editor, run supabase/fix_user_organization.sql (set v_only_email to your login email), then try again.";
