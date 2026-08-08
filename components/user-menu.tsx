@@ -24,7 +24,7 @@ type UserMenuProps = {
 };
 
 const menuItems = [
-  { href: "/dashboard", label: "Profile", icon: User },
+  { href: "/dashboard/meetings", label: "Profile", icon: User },
   { href: "/dashboard/meetings", label: "My meetings", icon: LayoutList },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
   { href: "/dashboard/connect", label: "Help", icon: CircleHelp },

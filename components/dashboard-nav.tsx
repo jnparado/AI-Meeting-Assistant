@@ -23,7 +23,7 @@ export async function DashboardNav() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link
-            href="/dashboard"
+            href="/dashboard/meetings"
             className="shrink-0 font-semibold tracking-tight hover:opacity-80"
           >
             <span className="text-gradient">MeetMind</span>

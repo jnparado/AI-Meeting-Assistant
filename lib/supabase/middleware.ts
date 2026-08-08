@@ -60,7 +60,7 @@ export async function updateSession(request: NextRequest) {
 
     if (user && path === "/") {
       const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
+      url.pathname = "/dashboard/meetings";
       url.search = "";
       return NextResponse.redirect(url);
     }

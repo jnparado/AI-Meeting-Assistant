@@ -47,7 +47,7 @@ export async function DashboardHome() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/dashboard");
+    redirect("/login?next=/dashboard/meetings");
   }
 
   const organization = await getActiveOrganization(user.id);

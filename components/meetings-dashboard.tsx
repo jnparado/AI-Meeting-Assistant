@@ -87,10 +87,7 @@ export async function MeetingsDashboard() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Meetings</h1>
-          <p className="text-muted-foreground">
-            {organization.name} — connect calendar, send AI to Meet, Zoom, or
-            Teams
-          </p>
+          <p className="text-muted-foreground">Upcoming meetings and AI assistants</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/join" className={cn(buttonVariants())}>

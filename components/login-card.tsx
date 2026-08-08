@@ -30,7 +30,7 @@ type LoginCardProps = {
 };
 
 export function LoginCard({
-  redirectAfter = "/dashboard",
+  redirectAfter = "/dashboard/meetings",
   supabaseConfigured,
   callbackError,
 }: LoginCardProps) {

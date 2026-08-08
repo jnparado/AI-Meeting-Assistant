@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const links = [
-  { href: "/dashboard", label: "Home", match: "/dashboard" },
   { href: "/dashboard/meetings", label: "Meetings", match: "/dashboard/meetings" },
   { href: "/join", label: "Join with AI", match: "/join" },
   { href: "/dashboard/connect", label: "Calendar", match: "/dashboard/connect" },
@@ -19,9 +18,7 @@ export function DashboardNavLinks() {
     <>
       {links.map(({ href, label, match }) => {
         const active =
-          match === "/dashboard"
-            ? pathname === "/dashboard"
-            : pathname === match || pathname.startsWith(`${match}/`);
+          pathname === match || pathname.startsWith(`${match}/`);
 
         return (
           <Link

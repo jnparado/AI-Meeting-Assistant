@@ -16,10 +16,7 @@ export function OrgSwitcher({
   const [loading, setLoading] = useState(false);
 
   if (organizations.length <= 1) {
-    const org = organizations[0];
-    return org ? (
-      <span className="hidden text-muted-foreground md:inline">{org.name}</span>
-    ) : null;
+    return null;
   }
 
   async function onChange(orgId: string) {

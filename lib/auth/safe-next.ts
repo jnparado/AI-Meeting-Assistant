@@ -1,4 +1,4 @@
-const DEFAULT_AFTER_AUTH = "/dashboard";
+export const DEFAULT_AFTER_AUTH = "/dashboard/meetings";
 
 /** Allow only same-origin relative paths (no protocol-relative URLs). */
 export function safeNextPath(

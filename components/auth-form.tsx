@@ -23,7 +23,7 @@ type AuthFormProps = {
 export function AuthForm({
   mode,
   callbackError,
-  redirectAfter = "/dashboard",
+  redirectAfter = "/dashboard/meetings",
   supabaseConfigured,
 }: AuthFormProps) {
   if (mode === "login") {

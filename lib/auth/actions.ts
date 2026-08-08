@@ -31,7 +31,7 @@ export async function signUpAction(
   }
 
   const supabase = await createClient();
-  const redirectTo = `${getAuthRedirectUrl("/auth/callback")}?next=${encodeURIComponent("/dashboard")}`;
+  const redirectTo = `${getAuthRedirectUrl("/auth/callback")}?next=${encodeURIComponent("/dashboard/meetings")}`;
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -61,7 +61,7 @@ export async function signUpAction(
     organization_name: organizationName,
   });
 
-  redirect("/dashboard");
+  redirect("/dashboard/meetings");
 }
 
 export async function signInAction(
@@ -101,7 +101,7 @@ export async function signInAction(
 
   const next = String(formData.get("next") ?? "").trim();
   const safeNext =
-    next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+    next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard/meetings";
   redirect(safeNext);
 }
 
