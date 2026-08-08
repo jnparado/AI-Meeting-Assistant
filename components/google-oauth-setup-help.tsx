@@ -56,14 +56,22 @@ export function GoogleOAuthSetupHelp() {
               <>Open Supabase Dashboard → Authentication → Providers</>
             )}
             , enable <strong className="text-foreground">Google</strong>, and paste
-            your Google OAuth Client ID and Client Secret.
+            your Google OAuth Client ID and Client Secret. Click Save.
           </li>
           <li>
-            In Google Cloud Console → Credentials → OAuth client → Authorized
-            redirect URIs, add:
-            <code className="mt-1 block break-all rounded bg-muted px-2 py-1 text-xs text-foreground">
+            <strong className="text-foreground">
+              Fix Google Error 400: redirect_uri_mismatch
+            </strong>{" "}
+            — In Google Cloud → Credentials → your <em>Web</em> OAuth client →
+            Authorized redirect URIs, add this exact URL (Supabase sign-in, not
+            localhost):
+            <code className="mt-1 block break-all rounded border border-amber-500/40 bg-background px-2 py-2 text-xs font-medium text-foreground">
               {uris.supabaseSignIn}
             </code>
+            <span className="mt-1 block text-xs">
+              Do not use <code>http://localhost:3000/auth/callback</code> here — Google
+              redirects to Supabase first; Supabase then sends users to your app.
+            </span>
           </li>
           <li>
             Supabase → Authentication → URL configuration → Redirect URLs, add:
