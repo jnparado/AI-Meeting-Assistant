@@ -4,12 +4,12 @@ type Props = {
   showAlways?: boolean;
 };
 
-/** Dev helper: Google Cloud redirect URI for Supabase “Sign in with Google”. */
-export function SupabaseGoogleOAuthHint({ showAlways }: Props) {
-  const isDev = process.env.NODE_ENV === "development";
-  if (!showAlways && !isDev) return null;
+/** Google Cloud redirect URI for Supabase “Sign in with Google”. */
+export function SupabaseGoogleOAuthHint({ showAlways = true }: Props) {
+  if (!showAlways && process.env.NODE_ENV !== "development") return null;
 
-  const { supabaseSignIn, appAuthCallback } = getGoogleOAuthRedirectUris();
+  const { supabaseSignIn, appAuthCallback, calendarConnect } =
+    getGoogleOAuthRedirectUris();
 
   return (
     <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm">
@@ -27,8 +27,18 @@ export function SupabaseGoogleOAuthHint({ showAlways }: Props) {
         {supabaseSignIn}
       </code>
       <p className="mt-2 text-xs text-muted-foreground">
-        In Supabase → Authentication → URL configuration → Redirect URLs, add:{" "}
+        Do <strong className="font-medium text-foreground">not</strong> put your app
+        URL or <code className="text-xs">/auth/callback</code> in Google redirect
+        URIs for sign-in — only the Supabase URL above.
+      </p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Supabase → Redirect URLs:{" "}
         <code className="break-all text-foreground">{appAuthCallback}</code>
+      </p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Calendar (separate): also add{" "}
+        <code className="break-all text-foreground">{calendarConnect}</code> on the
+        same Web client if you use one Google app for both.
       </p>
     </div>
   );

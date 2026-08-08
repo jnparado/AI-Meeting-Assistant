@@ -55,7 +55,10 @@ export function AuthPageLayout({
           showDevDetails={process.env.NODE_ENV === "development"}
         />
         {mode === "login" && supabaseConfigured ? (
-          <SupabaseGoogleOAuthHint />
+          <SupabaseGoogleOAuthHint showAlways />
+        ) : null}
+        {mode === "signup" && supabaseConfigured ? (
+          <SupabaseGoogleOAuthHint showAlways />
         ) : null}
         {signedInEmail ? (
           <SignedInBanner email={signedInEmail} continueHref={redirectAfter} />
