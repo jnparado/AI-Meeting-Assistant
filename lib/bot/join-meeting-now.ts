@@ -13,7 +13,10 @@ export async function joinMeetingNow(
   let targetMeetingId = meetingId;
 
   if (!targetMeetingId) {
-    const resolved = await resolveMeetingUrl(meetingUrl);
+    const resolved = await resolveMeetingUrl(meetingUrl, {
+      userId,
+      organizationId,
+    });
     if (!resolved.ok) {
       throw new Error(resolved.error);
     }

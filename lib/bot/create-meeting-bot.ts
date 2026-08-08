@@ -21,7 +21,10 @@ export async function createMeetingBotForUser(
   organizationId: string,
   input: CreateMeetingBotInput,
 ) {
-  const resolved = await resolveMeetingUrl(input.meetingUrl);
+  const resolved = await resolveMeetingUrl(input.meetingUrl, {
+    userId,
+    organizationId,
+  });
   if (!resolved.ok) {
     throw new Error(resolved.error);
   }

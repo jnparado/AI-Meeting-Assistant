@@ -82,8 +82,8 @@ export function SimpleAiJoin({
         </span>
         <h1 className="text-2xl font-semibold tracking-tight">Join with AI</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Paste a Google Meet, Zoom, or Teams link. Your notetaker joins as a
-          visible participant — no live voice assistant.
+          Paste a direct Meet link, Meet code (abc-defg-hij), Zoom/Teams URL, or a
+          Google Calendar event link (works best after you connect Google Calendar).
         </p>
       </div>
 
@@ -96,7 +96,7 @@ export function SimpleAiJoin({
           id="meeting-url"
           value={meetingUrl}
           onChange={(e) => setMeetingUrl(e.target.value)}
-          placeholder="https://meet.google.com/… or Zoom / Teams URL"
+          placeholder="https://meet.google.com/abc-defg-hij or calendar event link"
           autoComplete="off"
           className="h-11 rounded-xl border-border/80 bg-background/90"
           required

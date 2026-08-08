@@ -15,10 +15,23 @@ export function detectMeetingPlatform(url: string | null | undefined): MeetingPl
 }
 
 export function extractMeetingUrl(text: string): string | null {
-  const urlMatch = text.match(
-    /https?:\/\/[^\s<>"]+(?:meet\.google\.com|zoom\.(?:us|com)|teams\.(?:microsoft|live)\.com)[^\s<>"]*/i,
+  const normalized = text
+    .replace(/\\u002f/gi, "/")
+    .replace(/\\u002d/gi, "-")
+    .replace(/&#x2f;/gi, "/")
+    .replace(/&amp;/g, "&");
+
+  const urlMatch = normalized.match(
+    /https?:\/\/[^\s<>"']+(?:meet\.google\.com|zoom\.(?:us|com)|teams\.(?:microsoft|live)\.com)[^\s<>"']*/i,
   );
-  return urlMatch?.[0] ?? null;
+  if (urlMatch?.[0]) return urlMatch[0].replace(/[.,;]+$/, "");
+
+  const meetCode = normalized.match(/\b([a-z]{3}-[a-z]{4}-[a-z]{3})\b/i);
+  if (meetCode?.[1]) {
+    return `https://meet.google.com/${meetCode[1].toLowerCase()}`;
+  }
+
+  return null;
 }
 
 const platformTitles: Record<MeetingPlatform, string> = {
