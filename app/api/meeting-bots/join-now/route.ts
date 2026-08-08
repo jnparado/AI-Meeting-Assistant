@@ -5,6 +5,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireActiveOrganization, ORG_COOKIE } from "@/lib/org/server";
 import { ensureUserWorkspace } from "@/lib/org/ensure-workspace";
 import { joinMeetingNow } from "@/lib/bot/join-meeting-now";
+import { validateMeetingUrl } from "@/lib/bot/validate-meeting-url";
 import { SubscriptionError } from "@/lib/bot/credits";
 import { hasRecall } from "@/lib/env";
 
@@ -37,6 +38,11 @@ export async function POST(request: Request) {
       { error: "Invalid request", details: parsed.error.flatten() },
       { status: 400 },
     );
+  }
+
+  const urlCheck = validateMeetingUrl(parsed.data.meetingUrl);
+  if (!urlCheck.ok) {
+    return NextResponse.json({ error: urlCheck.error }, { status: 400 });
   }
 
   try {

@@ -25,9 +25,9 @@ export default async function JoinPage({
       <main className="mx-auto flex max-w-lg flex-col items-center px-4 pb-20 pt-6 md:pt-12">
         <SimpleAiJoin initialUrl={params.url ?? ""} />
         <p className="mt-8 max-w-sm text-center text-xs leading-relaxed text-muted-foreground">
-          Tip: start your Meet first, then join here. Admit{" "}
-          <strong className="font-medium text-foreground">MeetMind AI Notetaker</strong>{" "}
-          from the lobby when prompted.
+          Start the call, paste the link above, then admit your bot from the lobby.
+          When the meeting ends you&apos;ll get a transcript, summary, and action
+          items on the meeting page.
         </p>
       </main>
     </MarketingShell>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Sparkles, Video, Zap, Calendar, Bot, Mail } from "lucide-react";
+import { Sparkles, Video, Zap, Bot, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { MarketingShell } from "@/components/marketing-shell";
 import { buttonVariants } from "@/components/ui/button";
@@ -25,9 +25,9 @@ const features = [
 ];
 
 const steps = [
-  { icon: Calendar, label: "Connect calendar" },
-  { icon: Zap, label: "Schedule or join now" },
-  { icon: Mail, label: "Share follow-ups" },
+  { icon: Video, label: "Paste meeting link" },
+  { icon: Zap, label: "Bot joins & records" },
+  { icon: Mail, label: "Approve email summary" },
 ];
 
 export default async function Home() {
@@ -54,8 +54,9 @@ export default async function Home() {
               <span className="text-gradient">You stay in the conversation.</span>
             </h1>
             <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
-              MeetMind sends a notetaker to Google Meet, records the discussion, and
-              turns it into clear summaries — without juggling tabs or manual notes.
+              Paste a Meet, Zoom, or Teams link. Your AI notetaker joins as a guest,
+              transcribes the call, and turns it into a summary and action items —
+              you approve before anything is emailed.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link

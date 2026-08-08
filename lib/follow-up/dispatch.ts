@@ -45,7 +45,7 @@ export async function queueFollowUpsForMeeting(
       meeting_id: meetingId,
       user_id: userId,
       channel,
-      status: "pending",
+      status: channel === "email" ? "awaiting_approval" : "pending",
       payload: insights,
     })),
   );
@@ -61,6 +61,70 @@ async function loadOrgIntegrations(
     .eq("organization_id", organizationId)
     .maybeSingle();
   return data;
+}
+
+export async function approveAndSendEmailSummary(
+  meetingId: string,
+  userId: string,
+) {
+  const supabase = createServiceClient();
+  const { data: job } = await supabase
+    .from("follow_up_jobs")
+    .select("id, payload, meetings(title, organization_id)")
+    .eq("meeting_id", meetingId)
+    .eq("user_id", userId)
+    .eq("channel", "email")
+    .eq("status", "awaiting_approval")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!job) {
+    throw new Error("No email summary waiting for approval");
+  }
+
+  const meeting = job.meetings as {
+    title?: string;
+    organization_id?: string;
+  } | null;
+  const title = meeting?.title ?? "Meeting";
+  const organizationId = meeting?.organization_id;
+  if (!organizationId) {
+    throw new Error("Meeting missing organization");
+  }
+
+  const insights = job.payload as MeetingInsights;
+
+  try {
+    await sendEmailFollowUp(organizationId, title, insights);
+    await supabase
+      .from("follow_up_jobs")
+      .update({ status: "sent", sent_at: new Date().toISOString() })
+      .eq("id", job.id);
+  } catch (err) {
+    await supabase
+      .from("follow_up_jobs")
+      .update({
+        status: "failed",
+        error_message: err instanceof Error ? err.message : "Send failed",
+      })
+      .eq("id", job.id);
+    throw err;
+  }
+}
+
+export async function dismissEmailSummaryApproval(
+  meetingId: string,
+  userId: string,
+) {
+  const supabase = createServiceClient();
+  await supabase
+    .from("follow_up_jobs")
+    .update({ status: "cancelled" })
+    .eq("meeting_id", meetingId)
+    .eq("user_id", userId)
+    .eq("channel", "email")
+    .eq("status", "awaiting_approval");
 }
 
 export async function processPendingFollowUps(limit = 20) {

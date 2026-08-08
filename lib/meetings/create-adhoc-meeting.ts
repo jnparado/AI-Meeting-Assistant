@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
-import { detectMeetingPlatform } from "@/lib/calendar/parse-meeting-url";
+import { detectMeetingPlatform, meetingTitleForPlatform } from "@/lib/calendar/parse-meeting-url";
 import {
   insertMeetingWithFallbacks,
 } from "@/lib/meetings/insert-meeting-fallback";
@@ -17,8 +17,8 @@ export async function createAdhocMeetingRow(
   params: CreateAdhocParams,
 ): Promise<string> {
   const supabase = createServiceClient();
-  const title = params.title ?? "Live Google Meet";
   const platform = detectMeetingPlatform(params.meetingUrl);
+  const title = params.title ?? meetingTitleForPlatform(platform);
 
   const { data: rpcId, error: rpcError } = await supabase.rpc(
     "meetmind_create_adhoc_meeting",

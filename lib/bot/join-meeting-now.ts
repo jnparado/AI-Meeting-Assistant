@@ -1,5 +1,6 @@
 import { createMeetingBotForUser } from "@/lib/bot/create-meeting-bot";
 import { resolveMeetingUrl } from "@/lib/calendar/resolve-meeting-url";
+import { detectMeetingPlatform, meetingTitleForPlatform } from "@/lib/calendar/parse-meeting-url";
 import { createAdhocMeetingRow } from "@/lib/meetings/create-adhoc-meeting";
 
 export async function joinMeetingNow(
@@ -20,21 +21,25 @@ export async function joinMeetingNow(
     const now = new Date();
     const externalId = `adhoc:${now.getTime()}:${userId}`;
 
+    const platform = detectMeetingPlatform(resolved.meetingUrl);
+    const liveTitle = meetingTitleForPlatform(platform);
+
     targetMeetingId = await createAdhocMeetingRow({
       userId,
       organizationId,
       meetingUrl: resolved.meetingUrl,
       externalCalendarId: externalId,
+      title: liveTitle,
     });
 
     return createMeetingBotForUser(userId, organizationId, {
       meetingId: targetMeetingId,
-      meetingUrl,
+      meetingUrl: resolved.meetingUrl,
       botName,
       joinNow: true,
       knownMeeting: {
         id: targetMeetingId,
-        title: "Live Google Meet",
+        title: liveTitle,
         starts_at: now.toISOString(),
       },
     });

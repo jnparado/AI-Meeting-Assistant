@@ -76,73 +76,74 @@ export async function MeetingsDashboard() {
   const allIds = [...(upcoming ?? []), ...(past ?? [])].map((m) => m.id);
   const summarySet = await loadSummaryIds(supabase, allIds);
 
-  const { count: connectionCount } = await supabase
-    .from("calendar_connections")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("organization_id", organization.id);
-
   return (
     <div className="space-y-10">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Meetings</h1>
-          <p className="text-muted-foreground">Upcoming meetings and AI assistants</p>
+          <p className="text-muted-foreground">
+            AI notetaker sessions — join with a link, review summaries here
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/join" className={cn(buttonVariants())}>
-            Join with AI now
+          <Link href="/join" className={cn(buttonVariants({ size: "lg" }))}>
+            Paste link &amp; join
           </Link>
-          <SyncCalendarButton />
-          <DemoMeetingsButton />
           <Link
             href="/dashboard/connect"
             className={cn(buttonVariants({ variant: "outline" }))}
           >
-            Connect calendar
+            Calendar (optional)
           </Link>
         </div>
       </div>
 
       <Card className="glass-panel border-primary/15">
         <CardHeader>
-          <CardTitle className="text-base">How it works</CardTitle>
+          <CardTitle className="text-base">MVP flow</CardTitle>
           <CardDescription className="leading-relaxed">
-            1. Connect Google or Microsoft calendar → 2. Sync events → 3. Enable
-            the AI assistant on a meeting (or paste a link on{" "}
-            <Link href="/join" className="text-primary underline-offset-4 hover:underline">
-              Join with AI
-            </Link>
-            ) → 4. Admit the bot in the lobby → 5. Review transcript, summary,
-            and action items here — follow-ups go to email, Slack, or HubSpot
-            from{" "}
-            <Link
-              href="/dashboard/settings"
-              className="text-primary underline-offset-4 hover:underline"
-            >
-              Settings
-            </Link>
-            .
+            <ol className="list-decimal space-y-1 pl-4">
+              <li>
+                Paste a{" "}
+                <Link href="/join" className="text-primary underline-offset-4 hover:underline">
+                  Google Meet, Zoom, or Teams URL
+                </Link>{" "}
+                and choose your bot name.
+              </li>
+              <li>Click Join — the bot enters as a visible participant (not a voice assistant).</li>
+              <li>Admit the bot from the lobby if prompted.</li>
+              <li>When the call ends, open the meeting for transcript, summary, and action items.</li>
+              <li>
+                Approve the email summary on the meeting page before it is sent (
+                <Link
+                  href="/dashboard/settings"
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  notification email
+                </Link>
+                ).
+              </li>
+            </ol>
           </CardDescription>
         </CardHeader>
       </Card>
 
-      {!connectionCount && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Connect a calendar</CardTitle>
-            <CardDescription>
-              Import upcoming Google Meet, Zoom, and Teams links automatically.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      {process.env.NODE_ENV === "development" && (
+        <div className="flex flex-wrap gap-2">
+          <SyncCalendarButton />
+          <DemoMeetingsButton />
+        </div>
       )}
 
       <section id="upcoming-meetings" className="space-y-4 scroll-mt-8">
         <h2 className="text-lg font-medium">Upcoming</h2>
         {!upcoming?.length ? (
           <p className="text-sm text-muted-foreground">
-            No upcoming meetings. Sync your calendar or load demo meetings.
+            No upcoming meetings yet.{" "}
+            <Link href="/join" className="text-primary underline-offset-4 hover:underline">
+              Join with a meeting link
+            </Link>{" "}
+            to get started.
           </p>
         ) : (
           <div className="grid gap-4">

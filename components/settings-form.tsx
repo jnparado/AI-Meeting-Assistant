@@ -60,7 +60,9 @@ export function SettingsForm({
         <CardHeader>
           <CardTitle className="text-base">Follow-up channels</CardTitle>
           <CardDescription>
-          Company-wide follow-ups for {integrations ? "this workspace" : "your organization"}.
+            Email summaries are held for your approval on each meeting page after
+            the AI finishes. Slack and CRM channels (Phase 2) send automatically when
+            configured.
         </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { AssistantToggle } from "@/components/assistant-toggle";
 import { BotStatusTimeline } from "@/components/bot-status-timeline";
 import { MeetingQnaPanel } from "@/components/meeting-qna-panel";
+import { EmailSummaryApproval } from "@/components/email-summary-approval";
+import type { MeetingInsights } from "@/lib/ai/summarize-meeting";
 import {
   Card,
   CardContent,
@@ -67,9 +69,20 @@ export default async function MeetingDetailPage({
 
   const { data: followUps } = await supabase
     .from("follow_up_jobs")
-    .select("channel, status, sent_at, error_message")
+    .select("id, channel, status, sent_at, error_message, payload")
     .eq("meeting_id", id)
     .order("created_at", { ascending: false });
+
+  const { data: integrations } = await supabase
+    .from("organization_integrations")
+    .select("notification_email, follow_up_email")
+    .eq("organization_id", organization.id)
+    .maybeSingle();
+
+  const emailApprovalJob = followUps?.find(
+    (j) => j.channel === "email" && j.status === "awaiting_approval",
+  );
+  const emailInsights = emailApprovalJob?.payload as MeetingInsights | undefined;
 
   const segments = (transcript?.segments as TranscriptSegment[] | null) ?? [];
   const when = new Date(meeting.starts_at).toLocaleString();
@@ -119,6 +132,14 @@ export default async function MeetingDetailPage({
           failureReason={bot.failure_reason}
         />
       )}
+
+      {summary && emailInsights && integrations?.follow_up_email !== false ? (
+        <EmailSummaryApproval
+          meetingId={id}
+          insights={emailInsights}
+          notificationEmail={integrations?.notification_email ?? user.email ?? null}
+        />
+      ) : null}
 
       {summary && (
         <Card>
@@ -191,10 +212,14 @@ export default async function MeetingDetailPage({
                         ? "text-primary"
                         : job.status === "failed"
                           ? "text-destructive"
-                          : "text-muted-foreground"
+                          : job.status === "awaiting_approval"
+                            ? "text-amber-600 dark:text-amber-500"
+                            : "text-muted-foreground"
                     }
                   >
-                    {job.status}
+                    {job.status === "awaiting_approval"
+                      ? "awaiting your approval"
+                      : job.status}
                     {job.error_message ? ` — ${job.error_message}` : ""}
                   </span>
                 </li>

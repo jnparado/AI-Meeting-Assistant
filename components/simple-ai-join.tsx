@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bot, Link2, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ export function SimpleAiJoin({
   initialBotName = "MeetMind AI Notetaker",
   className,
 }: Props) {
+  const router = useRouter();
   const [meetingUrl, setMeetingUrl] = useState(initialUrl);
   const [botName, setBotName] = useState(initialBotName);
   const [loading, setLoading] = useState(false);
@@ -40,7 +42,11 @@ export function SimpleAiJoin({
       body: JSON.stringify({ meetingUrl: url, botName: name }),
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as {
+      error?: string;
+      message?: string;
+      meetingId?: string;
+    };
     setLoading(false);
 
     if (!res.ok) {
@@ -49,10 +55,16 @@ export function SimpleAiJoin({
       return;
     }
 
+    if (data.meetingId) {
+      router.push(`/dashboard/meetings/${data.meetingId}`);
+      router.refresh();
+      return;
+    }
+
     setIsError(false);
     setMessage(
       data.message ??
-        "AI is joining. Open Google Meet and admit the bot from the waiting room.",
+        "AI is joining. Admit the notetaker from the meeting lobby when prompted.",
     );
   }
 
@@ -70,7 +82,8 @@ export function SimpleAiJoin({
         </span>
         <h1 className="text-2xl font-semibold tracking-tight">Join with AI</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Paste your Meet link and choose the name participants will see.
+          Paste a Google Meet, Zoom, or Teams link. Your notetaker joins as a
+          visible participant — no live voice assistant.
         </p>
       </div>
 
@@ -83,7 +96,7 @@ export function SimpleAiJoin({
           id="meeting-url"
           value={meetingUrl}
           onChange={(e) => setMeetingUrl(e.target.value)}
-          placeholder="https://meet.google.com/abc-defg-hij"
+          placeholder="https://meet.google.com/… or Zoom / Teams URL"
           autoComplete="off"
           className="h-11 rounded-xl border-border/80 bg-background/90"
           required
@@ -93,7 +106,7 @@ export function SimpleAiJoin({
       <div className="space-y-2">
         <Label htmlFor="bot-name" className="flex items-center gap-2 text-muted-foreground">
           <Bot className="size-3.5" aria-hidden />
-          AI name in the call
+          Bot name in the call
         </Label>
         <Input
           id="bot-name"

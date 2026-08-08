@@ -20,3 +20,14 @@ export function extractMeetingUrl(text: string): string | null {
   );
   return urlMatch?.[0] ?? null;
 }
+
+const platformTitles: Record<MeetingPlatform, string> = {
+  google_meet: "Google Meet",
+  zoom: "Zoom",
+  teams: "Microsoft Teams",
+  unknown: "Video call",
+};
+
+export function meetingTitleForPlatform(platform: MeetingPlatform): string {
+  return `Live ${platformTitles[platform]}`;
+}
