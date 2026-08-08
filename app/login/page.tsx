@@ -1,35 +1,38 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getPublicSupabaseConfig } from "@/lib/supabase/config";
-import { AuthForm } from "@/components/auth-form";
-import { SupabaseAuthStatus } from "@/components/supabase-auth-status";
-import { GoogleOAuthSetupHelp } from "@/components/google-oauth-setup-help";
-import { MarketingShell } from "@/components/marketing-shell";
+import { safeNextPath } from "@/lib/auth/safe-next";
+import { AuthPageLayout } from "@/components/auth-page-layout";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: "Sign in to MeetMind and send your AI to live meetings.",
+};
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string; next?: string; redirect?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    message?: string;
+    next?: string;
+    redirect?: string;
+  }>;
 }) {
   const params = await searchParams;
-  const nextParam = params.next ?? params.redirect;
-  const afterLogin =
-    nextParam?.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/join";
+  const afterLogin = safeNextPath(params.next ?? params.redirect);
   const config = getPublicSupabaseConfig();
 
+  let signedInEmail: string | null = null;
   if (config.configured) {
     try {
       const supabase = await createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user) {
-        redirect(afterLogin);
-      }
+      signedInEmail = user?.email ?? null;
     } catch {
-      // Invalid Supabase config or network error — show login form either way.
+      // show login form
     }
   }
 
@@ -39,26 +42,16 @@ export default async function LoginPage({
       : null;
 
   return (
-    <MarketingShell showAuthLinks={false}>
-      <main className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pb-20 pt-4 md:pt-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to send your AI to a live meeting.
-          </p>
-        </div>
-        <SupabaseAuthStatus configured={config.configured} projectUrl={config.url} />
-        <AuthForm
-          mode="login"
-          callbackError={callbackError}
-          redirectAfter={afterLogin}
-          supabaseConfigured={config.configured}
-        />
-        <GoogleOAuthSetupHelp />
-        {params.message && (
-          <p className="text-center text-sm text-muted-foreground">{params.message}</p>
-        )}
-      </main>
-    </MarketingShell>
+    <AuthPageLayout
+      mode="login"
+      title="Welcome back"
+      description="Sign in to send your AI to a live meeting."
+      redirectAfter={afterLogin}
+      supabaseConfigured={config.configured}
+      supabaseProjectUrl={config.url}
+      signedInEmail={signedInEmail}
+      callbackError={callbackError}
+      message={params.message ?? null}
+    />
   );
 }

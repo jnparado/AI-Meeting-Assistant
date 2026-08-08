@@ -1,9 +1,14 @@
 type Props = {
   configured: boolean;
   projectUrl: string | null;
+  showDevDetails?: boolean;
 };
 
-export function SupabaseAuthStatus({ configured, projectUrl }: Props) {
+export function SupabaseAuthStatus({
+  configured,
+  projectUrl,
+  showDevDetails = false,
+}: Props) {
   if (!configured) {
     return (
       <div
@@ -17,6 +22,10 @@ export function SupabaseAuthStatus({ configured, projectUrl }: Props) {
         <code className="text-xs">npm run dev</code>.
       </div>
     );
+  }
+
+  if (!showDevDetails) {
+    return null;
   }
 
   let host = "Connected";

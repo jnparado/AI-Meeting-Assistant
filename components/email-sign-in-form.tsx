@@ -1,22 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { safeNextPath } from "@/lib/auth/safe-next";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AuthTextField, PasswordInput } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 
 type Props = {
   redirectAfter?: string;
   supabaseConfigured: boolean;
+  onForgotPassword?: () => void;
 };
 
 export function EmailSignInForm({
   redirectAfter = "/join",
   supabaseConfigured,
+  onForgotPassword,
 }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -59,12 +61,7 @@ export function EmailSignInForm({
 
       await fetch("/api/org/bootstrap", { method: "POST", credentials: "include" });
 
-      const next =
-        redirectAfter.startsWith("/") && !redirectAfter.startsWith("//")
-          ? redirectAfter
-          : "/join";
-
-      router.push(next);
+      router.push(safeNextPath(redirectAfter));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
@@ -76,7 +73,7 @@ export function EmailSignInForm({
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
-        <Input
+        <AuthTextField
           id="email"
           name="email"
           type="email"
@@ -87,11 +84,21 @@ export function EmailSignInForm({
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <Input
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="password">Password</Label>
+          {onForgotPassword ? (
+            <button
+              type="button"
+              onClick={onForgotPassword}
+              className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Forgot password?
+            </button>
+          ) : null}
+        </div>
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -104,7 +111,7 @@ export function EmailSignInForm({
           {error}
         </p>
       )}
-      <Button type="submit" disabled={loading} className="w-full">
+      <Button type="submit" disabled={loading} className="h-10 w-full rounded-full">
         {loading ? (
           <>
             <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -114,12 +121,6 @@ export function EmailSignInForm({
           "Sign in with email"
         )}
       </Button>
-      <p className="text-center text-sm text-muted-foreground">
-        New here?{" "}
-        <Link href="/signup" className="text-primary underline-offset-4 hover:underline">
-          Sign up
-        </Link>
-      </p>
     </form>
   );
 }

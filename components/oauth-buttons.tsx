@@ -71,7 +71,7 @@ export function OAuthButtons({
         variant="outline"
         disabled={loading !== null}
         onClick={() => signIn("google")}
-        className="w-full"
+        className="h-10 w-full rounded-full"
       >
         {loading === "google"
           ? "Redirecting…"
@@ -82,7 +82,7 @@ export function OAuthButtons({
         variant="outline"
         disabled={loading !== null}
         onClick={() => signIn("azure")}
-        className="w-full"
+        className="h-10 w-full rounded-full"
       >
         {loading === "azure"
           ? "Redirecting…"

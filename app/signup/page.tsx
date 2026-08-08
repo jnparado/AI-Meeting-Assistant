@@ -1,41 +1,46 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getPublicSupabaseConfig } from "@/lib/supabase/config";
-import { AuthForm } from "@/components/auth-form";
-import { SupabaseAuthStatus } from "@/components/supabase-auth-status";
-import { GoogleOAuthSetupHelp } from "@/components/google-oauth-setup-help";
-import { MarketingShell } from "@/components/marketing-shell";
+import { safeNextPath } from "@/lib/auth/safe-next";
+import { AuthPageLayout } from "@/components/auth-page-layout";
 
-export default async function SignupPage() {
+export const metadata: Metadata = {
+  title: "Create account",
+  description: "Create your MeetMind workspace — join meetings with AI.",
+};
+
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string; message?: string }>;
+}) {
+  const params = await searchParams;
+  const afterSignup = safeNextPath(params.next);
   const config = getPublicSupabaseConfig();
 
+  let signedInEmail: string | null = null;
   if (config.configured) {
     try {
       const supabase = await createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user) {
-        redirect("/join");
-      }
+      signedInEmail = user?.email ?? null;
     } catch {
       // show signup form
     }
   }
 
   return (
-    <MarketingShell showAuthLinks={false}>
-      <main className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pb-20 pt-4 md:pt-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Create your workspace</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Free to start — connect calendar and join meetings with AI.
-          </p>
-        </div>
-        <SupabaseAuthStatus configured={config.configured} projectUrl={config.url} />
-        <AuthForm mode="signup" supabaseConfigured={config.configured} />
-        <GoogleOAuthSetupHelp />
-      </main>
-    </MarketingShell>
+    <AuthPageLayout
+      mode="signup"
+      title="Create your workspace"
+      description="Free to start — connect calendar and join meetings with AI."
+      redirectAfter={afterSignup}
+      supabaseConfigured={config.configured}
+      supabaseProjectUrl={config.url}
+      signedInEmail={signedInEmail}
+      message={params.message ?? null}
+    />
   );
 }

@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { safeNextPath } from "@/lib/auth/safe-next";
 import { ensureUserWorkspace } from "@/lib/org/ensure-workspace";
 import { ORG_COOKIE } from "@/lib/org/server";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const nextParam = searchParams.get("next") ?? "/join";
-  const next =
-    nextParam.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/join";
+  const next = safeNextPath(searchParams.get("next"));
 
   if (code) {
     const supabase = await createClient();
@@ -48,5 +45,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  return NextResponse.redirect(
+    `${origin}/login?error=auth&next=${encodeURIComponent(next)}`,
+  );
 }

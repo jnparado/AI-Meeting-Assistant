@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { MarketingAuthLinks } from "@/components/marketing-auth-links";
 
 type MarketingShellProps = {
   children: React.ReactNode;
@@ -32,20 +30,7 @@ export function MarketingShell({
 
       <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-6">
         <BrandLogo href="/" />
-        {headerRight ??
-          (showAuthLinks ? (
-            <div className="flex items-center gap-2">
-              <Link
-                href="/login"
-                className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-              >
-                Sign in
-              </Link>
-              <Link href="/login?next=/join" className={cn(buttonVariants({ size: "sm" }))}>
-                Join with AI
-              </Link>
-            </div>
-          ) : null)}
+        {headerRight ?? (showAuthLinks ? <MarketingAuthLinks /> : null)}
       </header>
 
       <div className="relative z-10">{children}</div>

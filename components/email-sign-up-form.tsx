@@ -4,16 +4,21 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { authPathWithNext, safeNextPath } from "@/lib/auth/safe-next";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AuthTextField, PasswordInput } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 
 type Props = {
+  redirectAfter?: string;
   supabaseConfigured: boolean;
 };
 
-export function EmailSignUpForm({ supabaseConfigured }: Props) {
+export function EmailSignUpForm({
+  redirectAfter = "/join",
+  supabaseConfigured,
+}: Props) {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [organizationName, setOrganizationName] = useState("");
@@ -36,7 +41,8 @@ export function EmailSignUpForm({ supabaseConfigured }: Props) {
 
     try {
       const supabase = createClient();
-      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/join")}`;
+      const next = safeNextPath(redirectAfter);
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
@@ -58,7 +64,7 @@ export function EmailSignUpForm({ supabaseConfigured }: Props) {
 
       if (data.session && data.user) {
         await fetch("/api/org/bootstrap", { method: "POST", credentials: "include" });
-        router.push("/join");
+        router.push(next);
         router.refresh();
         return;
       }
@@ -75,7 +81,7 @@ export function EmailSignUpForm({ supabaseConfigured }: Props) {
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="space-y-2">
         <Label htmlFor="name">Full name</Label>
-        <Input
+        <AuthTextField
           id="name"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
@@ -85,7 +91,7 @@ export function EmailSignUpForm({ supabaseConfigured }: Props) {
       </div>
       <div className="space-y-2">
         <Label htmlFor="company">Company name</Label>
-        <Input
+        <AuthTextField
           id="company"
           value={organizationName}
           onChange={(e) => setOrganizationName(e.target.value)}
@@ -95,7 +101,7 @@ export function EmailSignUpForm({ supabaseConfigured }: Props) {
       </div>
       <div className="space-y-2">
         <Label htmlFor="signup-email">Email</Label>
-        <Input
+        <AuthTextField
           id="signup-email"
           type="email"
           value={email}
@@ -106,12 +112,11 @@ export function EmailSignUpForm({ supabaseConfigured }: Props) {
       </div>
       <div className="space-y-2">
         <Label htmlFor="signup-password">Password</Label>
-        <Input
+        <PasswordInput
           id="signup-password"
-          type="password"
+          autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          autoComplete="new-password"
           required
           minLength={8}
         />
@@ -124,12 +129,15 @@ export function EmailSignUpForm({ supabaseConfigured }: Props) {
       {success && (
         <p className="text-sm text-primary" role="status">
           {success}{" "}
-          <Link href="/login" className="underline-offset-4 hover:underline">
+          <Link
+            href={authPathWithNext("/login", redirectAfter)}
+            className="underline-offset-4 hover:underline"
+          >
             Sign in
           </Link>
         </p>
       )}
-      <Button type="submit" disabled={loading} className="w-full">
+      <Button type="submit" disabled={loading} className="h-10 w-full rounded-full">
         {loading ? (
           <>
             <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -139,12 +147,6 @@ export function EmailSignUpForm({ supabaseConfigured }: Props) {
           "Sign up with email"
         )}
       </Button>
-      <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
-        <Link href="/login" className="text-primary underline-offset-4 hover:underline">
-          Sign in
-        </Link>
-      </p>
     </form>
   );
 }
