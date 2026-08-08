@@ -29,9 +29,9 @@ export function GoogleCalendarRedirectHint({
       </code>
       <p className="mt-2 text-xs text-muted-foreground">
         Use the same OAuth client as{" "}
-        <code className="text-foreground">GOOGLE_CLIENT_ID</code> in{" "}
-        <code className="text-foreground">.env.local</code>. Calendar OAuth is
-        separate from Supabase Google sign-in.
+        <code className="text-foreground">GOOGLE_CLIENT_ID</code> in your env (
+        <code className="text-foreground">.env.local</code> locally, Vercel env on
+        production). Calendar OAuth is separate from Supabase Google sign-in.
       </p>
     </div>
   );

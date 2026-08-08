@@ -7,7 +7,20 @@ function required(name: string): string {
 }
 
 export function getAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const normalized = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
+
+  if (process.env.VERCEL === "1") {
+    return normalized || `https://${process.env.VERCEL_URL}`;
+  }
+
+  if (
+    normalized?.startsWith("http://localhost") ||
+    normalized?.startsWith("http://127.0.0.1")
+  ) {
+    return normalized;
+  }
+
+  return normalized ?? "http://localhost:3000";
 }
 
 export function getSupabasePublic() {
