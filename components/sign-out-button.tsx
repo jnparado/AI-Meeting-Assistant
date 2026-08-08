@@ -4,14 +4,23 @@ import { useState } from "react";
 import { LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-export function SignOutButton() {
+type SignOutButtonProps = {
+  email: string;
+};
+
+export function SignOutButton({ email }: SignOutButtonProps) {
   const [loading, setLoading] = useState(false);
 
   async function handleSignOut() {
     setLoading(true);
     const supabase = createClient();
     await supabase.auth.signOut();
-    window.location.assign("/login");
+    const params = new URLSearchParams();
+    if (email.trim()) {
+      params.set("email", email.trim());
+    }
+    const query = params.toString();
+    window.location.assign(query ? `/login?${query}` : "/login");
   }
 
   return (

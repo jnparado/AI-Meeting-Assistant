@@ -20,3 +20,13 @@ export function authPathWithNext(
   const safe = safeNextPath(next);
   return `${basePath}?next=${encodeURIComponent(safe)}`;
 }
+
+/** Prefill login email after sign-out (basic validation only). */
+export function safeEmailParam(value: string | null | undefined): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (trimmed.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return "";
+  }
+  return trimmed;
+}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import { SignOutButton } from "@/components/sign-out-button";
 import { cn } from "@/lib/utils";
 
 type SignedInBannerProps = {
@@ -21,14 +22,7 @@ export function SignedInBanner({ email, continueHref }: SignedInBannerProps) {
         <Link href={continueHref} className={cn(buttonVariants({ size: "sm" }))}>
           Continue to join
         </Link>
-        <form action="/api/auth/signout" method="POST">
-          <button
-            type="submit"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-          >
-            Sign out
-          </button>
-        </form>
+        <SignOutButton email={email} />
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         Use the form below to sign in with a different account.

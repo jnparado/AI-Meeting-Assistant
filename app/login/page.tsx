@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getPublicSupabaseConfig } from "@/lib/supabase/config";
-import { safeNextPath } from "@/lib/auth/safe-next";
+import { safeNextPath, safeEmailParam } from "@/lib/auth/safe-next";
 import { AuthPageLayout } from "@/components/auth-page-layout";
 
 export const metadata: Metadata = {
@@ -17,10 +17,12 @@ export default async function LoginPage({
     message?: string;
     next?: string;
     redirect?: string;
+    email?: string;
   }>;
 }) {
   const params = await searchParams;
   const afterLogin = safeNextPath(params.next ?? params.redirect);
+  const prefillEmail = safeEmailParam(params.email);
   const config = getPublicSupabaseConfig();
 
   let signedInEmail: string | null = null;
@@ -52,6 +54,7 @@ export default async function LoginPage({
       signedInEmail={signedInEmail}
       callbackError={callbackError}
       message={params.message ?? null}
+      prefillEmail={prefillEmail}
     />
   );
 }

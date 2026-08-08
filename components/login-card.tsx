@@ -27,16 +27,18 @@ type LoginCardProps = {
   redirectAfter?: string;
   supabaseConfigured: boolean;
   callbackError?: string | null;
+  defaultEmail?: string;
 };
 
 export function LoginCard({
   redirectAfter = "/dashboard/meetings",
   supabaseConfigured,
   callbackError,
+  defaultEmail = "",
 }: LoginCardProps) {
   const router = useRouter();
   const [showReset, setShowReset] = useState(false);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);

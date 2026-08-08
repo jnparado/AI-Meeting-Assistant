@@ -15,6 +15,7 @@ type AuthPageLayoutProps = {
   signedInEmail?: string | null;
   callbackError?: string | null;
   message?: string | null;
+  prefillEmail?: string;
 };
 
 export function AuthPageLayout({
@@ -27,6 +28,7 @@ export function AuthPageLayout({
   signedInEmail,
   callbackError,
   message,
+  prefillEmail = "",
 }: AuthPageLayoutProps) {
   return (
     <MarketingShell
@@ -59,6 +61,7 @@ export function AuthPageLayout({
           callbackError={callbackError}
           redirectAfter={redirectAfter}
           supabaseConfigured={supabaseConfigured}
+          prefillEmail={prefillEmail}
         />
         {message && (
           <p className="text-center text-sm text-muted-foreground">{message}</p>

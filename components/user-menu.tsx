@@ -103,7 +103,7 @@ export function UserMenu({ email, fullName, className }: UserMenuProps) {
             ))}
           </ul>
           <div className="border-t border-border px-4 py-3">
-            <SignOutButton />
+            <SignOutButton email={email} />
           </div>
         </div>
       ) : null}

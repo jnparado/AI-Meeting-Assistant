@@ -18,6 +18,7 @@ type AuthFormProps = {
   callbackError?: string | null;
   redirectAfter?: string;
   supabaseConfigured: boolean;
+  prefillEmail?: string;
 };
 
 export function AuthForm({
@@ -25,6 +26,7 @@ export function AuthForm({
   callbackError,
   redirectAfter = "/dashboard/meetings",
   supabaseConfigured,
+  prefillEmail = "",
 }: AuthFormProps) {
   if (mode === "login") {
     return (
@@ -32,6 +34,7 @@ export function AuthForm({
         redirectAfter={redirectAfter}
         supabaseConfigured={supabaseConfigured}
         callbackError={callbackError}
+        defaultEmail={prefillEmail}
       />
     );
   }
