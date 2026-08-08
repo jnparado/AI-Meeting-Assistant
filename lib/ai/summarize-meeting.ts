@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import { hasOpenAI } from "@/lib/env";
-import type { ActionItem, TranscriptSegment } from "@/lib/types/database";
+import type { TranscriptSegment } from "@/lib/types/database";
 
 const summarySchema = z.object({
   summary: z.string(),

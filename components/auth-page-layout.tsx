@@ -3,6 +3,7 @@ import { AuthHeaderLinks } from "@/components/auth-header-links";
 import { UserMenu } from "@/components/user-menu";
 import { AuthForm } from "@/components/auth-form";
 import { SupabaseAuthStatus } from "@/components/supabase-auth-status";
+import { SupabaseGoogleOAuthHint } from "@/components/supabase-google-oauth-hint";
 import { SignedInBanner } from "@/components/signed-in-banner";
 
 type AuthPageLayoutProps = {
@@ -53,6 +54,9 @@ export function AuthPageLayout({
           projectUrl={supabaseProjectUrl}
           showDevDetails={process.env.NODE_ENV === "development"}
         />
+        {mode === "login" && supabaseConfigured ? (
+          <SupabaseGoogleOAuthHint />
+        ) : null}
         {signedInEmail ? (
           <SignedInBanner email={signedInEmail} continueHref={redirectAfter} />
         ) : null}

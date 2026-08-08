@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getAppUrl } from "@/lib/env";
+import { getGoogleCalendarRedirectUri } from "@/lib/oauth/google-setup";
 import {
   encryptedTokens,
 } from "@/lib/calendar/connection-tokens";
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${getAppUrl()}/login`);
   }
 
-  const redirectUri = `${getAppUrl()}/api/oauth/google/callback`;
+  const redirectUri = getGoogleCalendarRedirectUri();
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },

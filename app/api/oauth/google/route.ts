@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAppUrl } from "@/lib/env";
+import { getGoogleCalendarRedirectUri } from "@/lib/oauth/google-setup";
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { requireActiveOrganization } from "@/lib/org/server";
@@ -45,7 +46,7 @@ export async function GET() {
     path: "/",
   });
 
-  const redirectUri = `${getAppUrl()}/api/oauth/google/callback`;
+  const redirectUri = getGoogleCalendarRedirectUri();
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,

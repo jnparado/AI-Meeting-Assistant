@@ -1,5 +1,4 @@
 import { detectMeetingPlatform, extractMeetingUrl } from "@/lib/calendar/parse-meeting-url";
-import type { MeetingPlatform } from "@/lib/types/database";
 import type { NormalizedCalendarEvent } from "@/lib/calendar/google";
 
 type GraphEvent = {

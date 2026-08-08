@@ -1,10 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { scheduleMeetingBot } from "@/lib/bot/recall";
 import { cancelMeetingBotForUser } from "@/lib/bot/cancel-meeting-bot";
-import {
-  createMeetingBotForUser,
-  type SubscriptionError,
-} from "@/lib/bot/create-meeting-bot";
+import { createMeetingBotForUser } from "@/lib/bot/create-meeting-bot";
 import type { CreateMeetingBotInput } from "@/lib/bot/validate-meeting-url";
 
 export async function enableAssistantForMeeting(

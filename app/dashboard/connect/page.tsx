@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveOrganization } from "@/lib/org/server";
 import { SyncCalendarButton } from "@/components/sync-calendar-button";
+import { GoogleCalendarRedirectHint } from "@/components/google-calendar-redirect-hint";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -36,6 +37,8 @@ export default async function ConnectCalendarPage({
     .eq("organization_id", organization?.id ?? "");
 
   const hasConnection = (count ?? 0) > 0;
+  const googleOAuthConfigured = Boolean(process.env.GOOGLE_CLIENT_ID?.trim());
+  const microsoftOAuthConfigured = Boolean(process.env.MICROSOFT_CLIENT_ID?.trim());
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -53,11 +56,17 @@ export default async function ConnectCalendarPage({
         )}
         {params.error && (
           <p className="mt-2 text-sm text-destructive">
-            Calendar connection failed. Check Google or Microsoft OAuth settings
-            in your environment, then try again.
+            Calendar connection failed. If Google showed{" "}
+            <strong>redirect_uri_mismatch</strong>, add the redirect URI below in
+            Google Cloud Console, then try again.
           </p>
         )}
       </div>
+
+      <GoogleCalendarRedirectHint
+        showAlways={Boolean(params.error)}
+        enabled={googleOAuthConfigured}
+      />
 
       <Card>
         <CardHeader>
@@ -68,18 +77,35 @@ export default async function ConnectCalendarPage({
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <Link
-            href="/api/oauth/google"
-            className={cn(buttonVariants({ variant: "secondary" }))}
-          >
-            Connect Google Calendar
-          </Link>
-          <Link
-            href="/api/oauth/microsoft"
-            className={cn(buttonVariants({ variant: "secondary" }))}
-          >
-            Connect Microsoft Outlook
-          </Link>
+          {googleOAuthConfigured ? (
+            <Link
+              href="/api/oauth/google"
+              className={cn(buttonVariants({ variant: "secondary" }))}
+            >
+              Connect Google Calendar
+            </Link>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Google Calendar: set <code className="text-xs">GOOGLE_CLIENT_ID</code>{" "}
+              and <code className="text-xs">GOOGLE_CLIENT_SECRET</code> in{" "}
+              <code className="text-xs">.env.local</code> (see{" "}
+              <code className="text-xs">.env.example</code>).
+            </p>
+          )}
+          {microsoftOAuthConfigured ? (
+            <Link
+              href="/api/oauth/microsoft"
+              className={cn(buttonVariants({ variant: "secondary" }))}
+            >
+              Connect Microsoft Outlook
+            </Link>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Microsoft: set <code className="text-xs">MICROSOFT_CLIENT_ID</code>{" "}
+              and <code className="text-xs">MICROSOFT_CLIENT_SECRET</code> in{" "}
+              <code className="text-xs">.env.local</code>.
+            </p>
+          )}
         </CardContent>
       </Card>
 
