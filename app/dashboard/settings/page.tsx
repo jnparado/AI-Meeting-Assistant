@@ -31,7 +31,7 @@ export default async function SettingsPage({
       <div>
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-muted-foreground">
-          Company integrations for {organization.name}
+          Workspace integrations, follow-ups, and notifications
         </p>
         {params.connected && (
           <p className="mt-2 text-sm text-primary">

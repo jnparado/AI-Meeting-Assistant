@@ -5,7 +5,6 @@ import { getActiveOrganization } from "@/lib/org/server";
 import { SyncCalendarButton } from "@/components/sync-calendar-button";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { GoogleOAuthSetupHelp } from "@/components/google-oauth-setup-help";
 import {
   Card,
   CardContent,
@@ -24,7 +23,7 @@ export default async function ConnectCalendarPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/login?next=/dashboard/connect");
 
   const organization = await getActiveOrganization(user.id);
 
@@ -41,9 +40,8 @@ export default async function ConnectCalendarPage({
       <div>
         <h1 className="text-2xl font-semibold">Connect your calendar</h1>
         <p className="text-muted-foreground">
-          {organization
-            ? `Import upcoming meetings for ${organization.name}. OAuth tokens are stored encrypted on the server only.`
-            : "Connect a calendar to import meetings."}
+          Import upcoming Google Meet, Zoom, and Teams events. OAuth tokens are
+          stored encrypted on the server only.
         </p>
         {params.connected && (
           <p className="mt-2 text-sm text-primary">
@@ -53,13 +51,11 @@ export default async function ConnectCalendarPage({
         )}
         {params.error && (
           <p className="mt-2 text-sm text-destructive">
-            Calendar connection failed. Check OAuth credentials and redirect URIs
-            below, then try again.
+            Calendar connection failed. Check Google or Microsoft OAuth settings
+            in your environment, then try again.
           </p>
         )}
       </div>
-
-      <GoogleOAuthSetupHelp />
 
       <Card>
         <CardHeader>

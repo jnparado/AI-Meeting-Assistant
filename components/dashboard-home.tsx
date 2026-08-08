@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Bot, Calendar, Sparkles, Video } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveOrganization } from "@/lib/org/server";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -50,7 +49,6 @@ export async function DashboardHome() {
     redirect("/login?next=/dashboard/meetings");
   }
 
-  const organization = await getActiveOrganization(user.id);
   const displayName =
     (user.user_metadata?.full_name as string | undefined)?.trim() ||
     user.email?.split("@")[0] ||
@@ -64,9 +62,8 @@ export async function DashboardHome() {
           Welcome back, {displayName}
         </h1>
         <p className="mt-2 text-muted-foreground">
-          {organization
-            ? `${organization.name} — pick what you want to do next.`
-            : "Your workspace is loading — you can still join a meeting with AI."}
+          Pick what you want to do next — join a meeting, sync calendar, or
+          review summaries.
         </p>
       </div>
 
