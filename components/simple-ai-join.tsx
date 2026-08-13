@@ -92,8 +92,15 @@ export function SimpleAiJoin({
 
     const meetingId =
       typeof data.meetingId === "string" ? data.meetingId : undefined;
-    const successMessage =
-      typeof data.message === "string" ? data.message : undefined;
+    const meetUrl =
+      typeof data.resolvedMeetingUrl === "string"
+        ? data.resolvedMeetingUrl
+        : url;
+
+    if (meetUrl.startsWith("http://") || meetUrl.startsWith("https://")) {
+      window.location.assign(meetUrl);
+      return;
+    }
 
     if (meetingId) {
       window.location.assign(`/dashboard/meetings/${meetingId}`);
@@ -102,8 +109,9 @@ export function SimpleAiJoin({
 
     setIsError(false);
     setMessage(
-      successMessage ??
-        "AI is joining. Admit the notetaker from the meeting lobby when prompted.",
+      typeof data.message === "string"
+        ? data.message
+        : "AI is joining. Admit the notetaker from the meeting lobby when prompted.",
     );
   }
 
@@ -123,8 +131,9 @@ export function SimpleAiJoin({
         </span>
         <h1 className="text-2xl font-semibold tracking-tight">Join with AI</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Paste a direct Meet link, Meet code (abc-defg-hij), Zoom/Teams URL, or a
-          Google Calendar event link (works best after you connect Google Calendar).
+          Paste a Meet link, Meet code, Zoom/Teams URL, or Calendar event link.
+          After you click Join, you&apos;ll go straight to the call — the AI
+          notetaker joins in the background.
         </p>
       </div>
 
