@@ -92,18 +92,17 @@ export function SimpleAiJoin({
 
     const meetingId =
       typeof data.meetingId === "string" ? data.meetingId : undefined;
-    const meetUrl =
-      typeof data.resolvedMeetingUrl === "string"
-        ? data.resolvedMeetingUrl
-        : url;
-
-    if (meetUrl.startsWith("http://") || meetUrl.startsWith("https://")) {
-      window.location.assign(meetUrl);
-      return;
-    }
+    const botNameUsed = botName;
+    const provider =
+      typeof data.provider === "string" ? data.provider : "simulation";
 
     if (meetingId) {
-      window.location.assign(`/dashboard/meetings/${meetingId}`);
+      const params = new URLSearchParams({
+        joined: "1",
+        bot: botNameUsed,
+        mode: provider,
+      });
+      window.location.assign(`/dashboard/meetings/${meetingId}?${params}`);
       return;
     }
 
@@ -111,7 +110,7 @@ export function SimpleAiJoin({
     setMessage(
       typeof data.message === "string"
         ? data.message
-        : "AI is joining. Admit the notetaker from the meeting lobby when prompted.",
+        : `“${botNameUsed}” is joining the meeting. You stay out of the call — admit the bot from the lobby if you’re the host.`,
     );
   }
 
@@ -129,11 +128,13 @@ export function SimpleAiJoin({
         <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <Sparkles className="size-6" aria-hidden />
         </span>
-        <h1 className="text-2xl font-semibold tracking-tight">Join with AI</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Send AI to meeting</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Paste a Meet link, Meet code, Zoom/Teams URL, or Calendar event link.
-          After you click Join, you&apos;ll go straight to the call — the AI
-          notetaker joins in the background.
+          Paste a Meet link. MeetMind sends an AI notetaker into the call —{" "}
+          <strong className="font-medium text-foreground">you do not join</strong>{" "}
+          as yourself. If you host the meeting, admit{" "}
+          <strong className="font-medium text-foreground">{botName.trim() || "MeetMind AI Notetaker"}</strong>{" "}
+          from the waiting room.
         </p>
       </div>
 
@@ -177,10 +178,10 @@ export function SimpleAiJoin({
         {loading ? (
           <>
             <Loader2 className="size-4 animate-spin" aria-hidden />
-            Joining…
+            Joining bot…
           </>
         ) : (
-          "Join meeting"
+          "Send AI bot"
         )}
       </Button>
 

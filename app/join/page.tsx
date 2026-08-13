@@ -25,13 +25,14 @@ export default async function JoinPage({
       <main className="mx-auto flex max-w-lg flex-col items-center px-4 pb-20 pt-6 md:pt-12">
         <SimpleAiJoin initialUrl={params.url ?? ""} />
         <p className="mt-8 max-w-sm text-center text-xs leading-relaxed text-muted-foreground">
-          You&apos;ll open Google Meet (or Zoom/Teams) directly. Admit{" "}
-          <strong className="font-medium text-foreground">MeetMind AI Notetaker</strong>{" "}
-          from the lobby if asked. Transcript and summary appear on your{" "}
+          MeetMind sends <strong className="font-medium text-foreground">MeetMind AI Notetaker</strong>{" "}
+          into the call — you are not joining as yourself. If you host, admit the
+          bot from the Google Meet waiting room. Summary and transcript appear on
+          your{" "}
           <a href="/dashboard/meetings" className="text-primary underline-offset-4 hover:underline">
             meetings dashboard
           </a>{" "}
-          when the call ends.
+          after the call.
         </p>
       </main>
     </MarketingShell>

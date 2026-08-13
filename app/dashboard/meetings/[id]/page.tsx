@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getActiveOrganization } from "@/lib/org/server";
 import { ensureUserWorkspaceFromSession } from "@/lib/org/ensure-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { loadMeetingForUserSecure } from "@/lib/meetings/load-meeting-for-user";
 import { AssistantToggle } from "@/components/assistant-toggle";
+import { BotJoinBanner } from "@/components/bot-join-banner";
 import { BotStatusTimeline } from "@/components/bot-status-timeline";
 import { MeetingQnaPanel } from "@/components/meeting-qna-panel";
 import { EmailSummaryApproval } from "@/components/email-summary-approval";
@@ -107,6 +109,10 @@ export default async function MeetingDetailPage({
         ← Back to meetings
       </Link>
 
+      <Suspense fallback={null}>
+        <BotJoinBanner botName={bot?.bot_name as string | undefined} />
+      </Suspense>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -116,12 +122,13 @@ export default async function MeetingDetailPage({
           <p className="text-muted-foreground">{when}</p>
           {meeting.meeting_url && (
             <a
-              href={meeting.meeting_url}
+              id="open-meet-link"
+              href={meeting.meeting_url as string}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 inline-block text-sm text-primary underline-offset-4 hover:underline"
+              className="mt-2 inline-block text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             >
-              Open conference link
+              Open conference link (optional — for you, not the bot)
             </a>
           )}
         </div>

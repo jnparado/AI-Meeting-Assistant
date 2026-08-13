@@ -1,0 +1,53 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+
+type Props = {
+  botName?: string | null;
+};
+
+export function BotJoinBanner({ botName }: Props) {
+  const searchParams = useSearchParams();
+  const justJoined = searchParams.get("joined") === "1";
+  const mode = searchParams.get("mode");
+  const name =
+    searchParams.get("bot")?.trim() || botName?.trim() || "MeetMind AI Notetaker";
+
+  if (!justJoined) return null;
+
+  const isSimulation = mode !== "recall";
+
+  return (
+    <div
+      className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-4 text-sm leading-relaxed"
+      role="status"
+    >
+      <p className="font-medium text-foreground">
+        {isSimulation ? "Simulation started" : "AI bot is joining the meeting"}
+      </p>
+      <p className="mt-1 text-muted-foreground">
+        <strong className="text-foreground">{name}</strong> is the participant in
+        the call — not you. If you host the meeting, open Google Meet and admit{" "}
+        <strong className="text-foreground">{name}</strong> from the waiting room.
+      </p>
+      {isSimulation ? (
+        <p className="mt-2 text-xs text-amber-800 dark:text-amber-400">
+          Demo mode: add <code className="text-foreground">RECALL_API_KEY</code> in
+          Vercel / <code className="text-foreground">.env.local</code> for a real
+          bot to appear on Google Meet.
+        </p>
+      ) : null}
+      <p className="mt-2 text-xs text-muted-foreground">
+        Want to join the call yourself too?{" "}
+        <Link
+          href="#open-meet-link"
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
+          Open the conference link below
+        </Link>{" "}
+        in a separate tab — that is optional.
+      </p>
+    </div>
+  );
+}
