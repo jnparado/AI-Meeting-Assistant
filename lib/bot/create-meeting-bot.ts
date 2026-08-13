@@ -12,6 +12,7 @@ import {
 import { resolveMeetingUrl } from "@/lib/calendar/resolve-meeting-url";
 import { detectMeetingPlatform } from "@/lib/calendar/parse-meeting-url";
 import { prepareMeetingForJoin } from "@/lib/meetings/insert-meeting-fallback";
+import { insertMeetingBotWithFallbacks } from "@/lib/bot/insert-meeting-bot-fallback";
 
 const DEFAULT_BOT_NAME = "ServiceFlow AI Notetaker";
 const JOIN_LEAD_MINUTES = 1;
@@ -86,69 +87,22 @@ export async function createMeetingBotForUser(
 
   await prepareMeetingForJoin(supabase, meeting.id, joinUrl, platform);
 
-  let bot: Record<string, unknown> | null = null;
+  const { bot: insertedBot, lastError: botInsertError } =
+    await insertMeetingBotWithFallbacks(supabase, {
+      meetingId: meeting.id,
+      userId,
+      botName,
+      joinAt,
+      joinNow: Boolean(input.joinNow),
+    });
 
-  const { data: rpcBotId, error: rpcBotError } = await supabase.rpc(
-    "meetmind_insert_meeting_bot",
-    {
-      p_meeting_id: meeting.id,
-      p_user_id: userId,
-      p_bot_name: botName,
-      p_status: input.joinNow ? "joining" : "scheduled",
-    },
-  );
-
-  if (!rpcBotError && rpcBotId) {
-    bot = {
-      id: rpcBotId,
-      meeting_id: meeting.id,
-      user_id: userId,
-      status: input.joinNow ? "joining" : "scheduled",
-      scheduled_for: joinAt.toISOString(),
-      bot_name: botName,
-    };
-  }
+  const bot = insertedBot;
 
   if (!bot) {
-    const botPayloads: Record<string, unknown>[] = [
-      {
-        meeting_id: meeting.id,
-        user_id: userId,
-        status: input.joinNow ? "joining" : "scheduled",
-        scheduled_for: joinAt.toISOString(),
-        bot_name: botName,
-      },
-      {
-        meeting_id: meeting.id,
-        user_id: userId,
-        scheduled_for: joinAt.toISOString(),
-        bot_name: botName,
-      },
-    ];
-
-    for (const payload of botPayloads) {
-      const { data: inserted, error: botError } = await supabase
-        .from("meeting_bots")
-        .insert(payload)
-        .select("id, meeting_id, user_id, status, scheduled_for, bot_name")
-        .single();
-
-      if (!botError && inserted) {
-        bot = inserted as Record<string, unknown>;
-        break;
-      }
-      if (
-        botError &&
-        !/schema cache/i.test(botError.message) &&
-        !/invalid input value for enum/i.test(botError.message)
-      ) {
-        throw new Error(botError.message);
-      }
-    }
-
-    if (!bot) {
-      throw new Error("Failed to create bot — run npm run db:fix or RUN_IN_SQL_EDITOR.sql");
-    }
+    const detail = botInsertError ? ` (${botInsertError.slice(0, 160)})` : "";
+    throw new Error(
+      `Failed to create bot — run npm run db:fix or RUN_IN_SQL_EDITOR.sql${detail}`,
+    );
   }
 
   const botId = bot.id as string;

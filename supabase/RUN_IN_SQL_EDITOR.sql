@@ -2,6 +2,77 @@
 -- Fixes "schema cache" / provider errors on Join meeting.
 -- Or locally: add SUPABASE_DB_URL to .env.local and run `npm run db:fix`
 
+do $$ begin
+  create type public.bot_status as enum (
+    'scheduled',
+    'joining',
+    'waiting_room',
+    'joined',
+    'recording',
+    'meeting_ended',
+    'processing',
+    'completed',
+    'failed',
+    'cancelled'
+  );
+exception when duplicate_object then null; end $$;
+
+-- meeting_bots: table may exist without columns the app expects (e.g. user_id)
+alter table public.meeting_bots
+  add column if not exists meeting_id uuid references public.meetings (id) on delete cascade;
+
+alter table public.meeting_bots
+  add column if not exists user_id uuid references public.profiles (id) on delete cascade;
+
+alter table public.meeting_bots
+  add column if not exists external_bot_id text;
+
+alter table public.meeting_bots
+  add column if not exists scheduled_for timestamptz not null default now();
+
+alter table public.meeting_bots
+  add column if not exists joined_at timestamptz;
+
+alter table public.meeting_bots
+  add column if not exists recording_started_at timestamptz;
+
+alter table public.meeting_bots
+  add column if not exists completed_at timestamptz;
+
+alter table public.meeting_bots
+  add column if not exists failure_reason text;
+
+alter table public.meeting_bots
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
+
+alter table public.meeting_bots
+  add column if not exists bot_name text;
+
+alter table public.meeting_bots
+  add column if not exists created_at timestamptz not null default now();
+
+alter table public.meeting_bots
+  add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'meeting_bots'
+      and column_name = 'status'
+  ) then
+    alter table public.meeting_bots
+      add column status public.bot_status not null default 'scheduled';
+  end if;
+end $$;
+
+update public.meeting_bots b
+set user_id = m.user_id
+from public.meetings m
+where b.meeting_id = m.id
+  and b.user_id is null;
+
 -- Ensure meetings columns exist (safe if already applied)
 alter table public.meetings
   add column if not exists provider text default 'google';

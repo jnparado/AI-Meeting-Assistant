@@ -15,3 +15,5 @@ export function getAuthRedirectUrl(path = "/auth/callback"): string {
     "http://localhost:3000";
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
+
+export { getSupabaseSqlEditorUrl } from "@/lib/supabase/sql-editor-url";

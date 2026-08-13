@@ -10,6 +10,9 @@ export function safeNextPath(
   if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
     return fallback;
   }
+  if (trimmed.startsWith("/api/")) {
+    return fallback;
+  }
   return trimmed;
 }
 

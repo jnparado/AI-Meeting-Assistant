@@ -7,6 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { getSupabaseSqlEditorUrl } from "@/lib/supabase/sql-editor-url";
+
+async function readJsonResponse(res: Response): Promise<Record<string, unknown>> {
+  const type = res.headers.get("content-type") ?? "";
+  if (!type.includes("application/json")) {
+    if (res.status === 401) {
+      return { error: "Your session expired. Please sign in again." };
+    }
+    return { error: "Unexpected server response. Try again or refresh the page." };
+  }
+  try {
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return { error: "Could not read server response. Try again." };
+  }
+}
 
 type Props = {
   initialUrl?: string;
@@ -40,33 +56,44 @@ export function SimpleAiJoin({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ meetingUrl: url, botName: name }),
+      credentials: "include",
     });
 
-    const data = (await res.json()) as {
-      error?: string;
-      message?: string;
-      meetingId?: string;
-    };
+    const data = await readJsonResponse(res);
     setLoading(false);
 
-    if (!res.ok) {
+    if (res.status === 401) {
       setIsError(true);
-      setMessage(data.error ?? "Could not join the meeting");
+      setMessage(String(data.error ?? "Please sign in again."));
+      window.location.href = `/login?next=${encodeURIComponent("/join")}`;
       return;
     }
 
-    if (data.meetingId) {
-      router.push(`/dashboard/meetings/${data.meetingId}`);
+    if (!res.ok) {
+      setIsError(true);
+      setMessage(String(data.error ?? "Could not join the meeting"));
+      return;
+    }
+
+    const meetingId =
+      typeof data.meetingId === "string" ? data.meetingId : undefined;
+    const successMessage =
+      typeof data.message === "string" ? data.message : undefined;
+
+    if (meetingId) {
+      router.push(`/dashboard/meetings/${meetingId}`);
       router.refresh();
       return;
     }
 
     setIsError(false);
     setMessage(
-      data.message ??
+      successMessage ??
         "AI is joining. Admit the notetaker from the meeting lobby when prompted.",
     );
   }
+
+  const sqlEditorUrl = getSupabaseSqlEditorUrl();
 
   return (
     <form
@@ -135,7 +162,7 @@ export function SimpleAiJoin({
       </Button>
 
       {message && (
-        <p
+        <div
           className={cn(
             "rounded-xl px-4 py-3 text-center text-sm leading-relaxed",
             isError
@@ -144,8 +171,28 @@ export function SimpleAiJoin({
           )}
           role={isError ? "alert" : "status"}
         >
-          {message}
-        </p>
+          <p>{message}</p>
+          {isError &&
+            /RUN_IN_SQL_EDITOR|PATCH_meeting_bots|one-time SQL fix/i.test(
+              message,
+            ) &&
+            (sqlEditorUrl ? (
+              <p className="mt-2">
+                <a
+                  href={sqlEditorUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium underline underline-offset-2"
+                >
+                  Open Supabase SQL Editor
+                </a>
+                {" · "}
+                paste{" "}
+                <code className="text-xs">supabase/PATCH_meeting_bots.sql</code>{" "}
+                (or the full RUN_IN_SQL_EDITOR.sql) and Run
+              </p>
+            ) : null)}
+        </div>
       )}
     </form>
   );

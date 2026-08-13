@@ -50,9 +50,16 @@ export async function updateSession(request: NextRequest) {
       path.startsWith("/api/profile") ||
       path.startsWith("/api/demo") ||
       path.startsWith("/api/org") ||
-      path.startsWith("/api/meeting-bots");
+      (path.startsWith("/api/meeting-bots") &&
+        !(
+          path === "/api/meeting-bots/join-now" &&
+          request.method === "GET"
+        ));
 
     if (!user && isProtected) {
+      if (path.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("next", path);
