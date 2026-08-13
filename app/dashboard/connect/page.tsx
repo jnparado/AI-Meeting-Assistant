@@ -64,7 +64,7 @@ export default async function ConnectCalendarPage({
       </div>
 
       <GoogleCalendarRedirectHint
-        showAlways={Boolean(params.error) || googleOAuthConfigured}
+        showAlways={Boolean(params.error)}
         enabled={googleOAuthConfigured}
       />
 

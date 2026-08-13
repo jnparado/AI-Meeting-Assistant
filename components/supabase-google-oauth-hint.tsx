@@ -1,12 +1,19 @@
 import { getGoogleOAuthRedirectUris } from "@/lib/oauth/google-setup";
 
 type Props = {
+  /** Force show (e.g. troubleshooting). */
   showAlways?: boolean;
+  /** Show after sign-in callback failed (redirect_uri_mismatch, etc.). */
+  showOnError?: boolean;
 };
 
 /** Google Cloud redirect URI for Supabase “Sign in with Google”. */
-export function SupabaseGoogleOAuthHint({ showAlways = true }: Props) {
-  if (!showAlways && process.env.NODE_ENV !== "development") return null;
+export function SupabaseGoogleOAuthHint({
+  showAlways = false,
+  showOnError = false,
+}: Props) {
+  const isDev = process.env.NODE_ENV === "development";
+  if (!showAlways && !showOnError && !isDev) return null;
 
   const { supabaseSignIn, appAuthCallback, calendarConnect } =
     getGoogleOAuthRedirectUris();
