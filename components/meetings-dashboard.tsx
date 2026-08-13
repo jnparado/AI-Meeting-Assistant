@@ -58,7 +58,9 @@ export async function MeetingsDashboard() {
       .select(
         "id, title, starts_at, platform, ai_assistant_enabled, meeting_url",
       )
-      .eq("organization_id", organization.id)
+      .or(
+        `organization_id.eq.${organization.id},and(user_id.eq.${user.id},organization_id.is.null)`,
+      )
       .gte("starts_at", now)
       .order("starts_at", { ascending: true })
       .limit(50),
@@ -67,7 +69,9 @@ export async function MeetingsDashboard() {
       .select(
         "id, title, starts_at, platform, ai_assistant_enabled, meeting_url",
       )
-      .eq("organization_id", organization.id)
+      .or(
+        `organization_id.eq.${organization.id},and(user_id.eq.${user.id},organization_id.is.null)`,
+      )
       .lt("starts_at", now)
       .order("starts_at", { ascending: false })
       .limit(30),

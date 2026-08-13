@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getActiveOrganization } from "@/lib/org/server";
-import { notFound } from "next/navigation";
+import { ensureUserWorkspaceFromSession } from "@/lib/org/ensure-workspace";
 import { createClient } from "@/lib/supabase/server";
+import { loadMeetingForUserSecure } from "@/lib/meetings/load-meeting-for-user";
 import { AssistantToggle } from "@/components/assistant-toggle";
 import { BotStatusTimeline } from "@/components/bot-status-timeline";
 import { MeetingQnaPanel } from "@/components/meeting-qna-panel";
@@ -33,19 +35,25 @@ export default async function MeetingDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) notFound();
+  if (!user) {
+    redirect(`/login?next=${encodeURIComponent(`/dashboard/meetings/${id}`)}`);
+  }
 
-  const organization = await getActiveOrganization(user.id);
-  if (!organization) notFound();
+  let organization = await getActiveOrganization(user.id);
+  if (!organization) {
+    await ensureUserWorkspaceFromSession();
+    organization = await getActiveOrganization(user.id);
+  }
 
-  const { data: meeting } = await supabase
-    .from("meetings")
-    .select("*")
-    .eq("id", id)
-    .eq("organization_id", organization.id)
-    .single();
+  const meeting = await loadMeetingForUserSecure(
+    id,
+    user.id,
+    organization?.id ?? null,
+  );
 
-  if (!meeting) notFound();
+  if (!meeting) {
+    redirect("/dashboard/meetings?error=meeting-not-found");
+  }
 
   const { data: bot } = await supabase
     .from("meeting_bots")
@@ -76,7 +84,7 @@ export default async function MeetingDetailPage({
   const { data: integrations } = await supabase
     .from("organization_integrations")
     .select("notification_email, follow_up_email")
-    .eq("organization_id", organization.id)
+    .eq("organization_id", organization?.id ?? meeting.organization_id)
     .maybeSingle();
 
   const emailApprovalJob = followUps?.find(
@@ -85,7 +93,7 @@ export default async function MeetingDetailPage({
   const emailInsights = emailApprovalJob?.payload as MeetingInsights | undefined;
 
   const segments = (transcript?.segments as TranscriptSegment[] | null) ?? [];
-  const when = new Date(meeting.starts_at).toLocaleString();
+  const when = new Date(String(meeting.starts_at ?? Date.now())).toLocaleString();
   const hasTranscript = Boolean(
     transcript?.full_text || segments.length > 0,
   );
@@ -102,9 +110,9 @@ export default async function MeetingDetailPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {platformLabel[meeting.platform] ?? "Meeting"}
+            {platformLabel[String(meeting.platform ?? "unknown")] ?? "Meeting"}
           </p>
-          <h1 className="text-2xl font-semibold">{meeting.title}</h1>
+          <h1 className="text-2xl font-semibold">{String(meeting.title ?? "Meeting")}</h1>
           <p className="text-muted-foreground">{when}</p>
           {meeting.meeting_url && (
             <a
@@ -118,9 +126,9 @@ export default async function MeetingDetailPage({
           )}
         </div>
         <AssistantToggle
-          meetingId={meeting.id}
-          meetingUrl={meeting.meeting_url}
-          enabled={meeting.ai_assistant_enabled}
+          meetingId={String(meeting.id)}
+          meetingUrl={(meeting.meeting_url as string | null) ?? null}
+          enabled={Boolean(meeting.ai_assistant_enabled)}
         />
       </div>
 

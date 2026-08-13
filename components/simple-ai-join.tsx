@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Bot, Link2, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +34,6 @@ export function SimpleAiJoin({
   initialBotName = "MeetMind AI Notetaker",
   className,
 }: Props) {
-  const router = useRouter();
   const [meetingUrl, setMeetingUrl] = useState(initialUrl);
   const [botName, setBotName] = useState(initialBotName);
   const [loading, setLoading] = useState(false);
@@ -81,8 +79,7 @@ export function SimpleAiJoin({
       typeof data.message === "string" ? data.message : undefined;
 
     if (meetingId) {
-      router.push(`/dashboard/meetings/${meetingId}`);
-      router.refresh();
+      window.location.assign(`/dashboard/meetings/${meetingId}`);
       return;
     }
 

@@ -16,6 +16,8 @@ function isRetryableInsertError(message: string | undefined): boolean {
     /schema cache/i.test(message) ||
     /invalid input value for enum/i.test(message) ||
     /null value in column "provider"/i.test(message) ||
+    /null value in column "organization_id"/i.test(message) ||
+    /Could not find the 'organization_id' column/i.test(message) ||
     /column ".+" of relation "meetings" does not exist/i.test(message) ||
     /Could not find the 'provider' column/i.test(message)
   );
@@ -67,6 +69,15 @@ export async function insertMeetingWithFallbacks(
     meeting_url: params.meetingUrl,
   };
   bodies.push(minimal);
+
+  bodies.push({
+    user_id: params.userId,
+    external_calendar_id: params.externalCalendarId,
+    title: params.title,
+    starts_at: base.starts_at,
+    ends_at: base.ends_at,
+    meeting_url: params.meetingUrl,
+  });
 
   let lastError: string | undefined;
 

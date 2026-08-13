@@ -3,6 +3,7 @@ import { detectMeetingPlatform, meetingTitleForPlatform } from "@/lib/calendar/p
 import {
   insertMeetingWithFallbacks,
 } from "@/lib/meetings/insert-meeting-fallback";
+import { ensureMeetingOrganization } from "@/lib/meetings/load-meeting-for-user";
 
 type CreateAdhocParams = {
   userId: string;
@@ -32,7 +33,9 @@ export async function createAdhocMeetingRow(
   );
 
   if (!rpcError && rpcId) {
-    return String(rpcId);
+    const id = String(rpcId);
+    await ensureMeetingOrganization(id, params.organizationId, params.userId);
+    return id;
   }
 
   if (rpcError) {
@@ -44,7 +47,7 @@ export async function createAdhocMeetingRow(
     }
   }
 
-  return insertMeetingWithFallbacks(supabase, {
+  const id = await insertMeetingWithFallbacks(supabase, {
     userId: params.userId,
     organizationId: params.organizationId,
     meetingUrl: params.meetingUrl,
@@ -52,4 +55,6 @@ export async function createAdhocMeetingRow(
     title,
     platform,
   });
+  await ensureMeetingOrganization(id, params.organizationId, params.userId);
+  return id;
 }
