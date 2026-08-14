@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { readJsonResponse } from "@/lib/client/read-json-response";
 
 type Props = {
   meetingId: string;
@@ -17,7 +18,7 @@ export function AssistantToggle({
   meetingId,
   meetingUrl: initialUrl,
   enabled,
-  botName,
+  botName = "MeetMind AI Notetaker",
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -25,7 +26,6 @@ export function AssistantToggle({
   const [on, setOn] = useState(enabled);
   const [meetingUrl, setMeetingUrl] = useState(initialUrl ?? "");
   const [resolvedHint, setResolvedHint] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   async function schedule() {
     const url = meetingUrl.trim();
@@ -37,21 +37,26 @@ export function AssistantToggle({
     const res = await fetch("/api/meeting-bots", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({
         meetingId,
         meetingUrl: url,
-        ...(botName ? { botName } : {}),
+        botName,
       }),
     });
-    const data = await res.json();
+    const data = await readJsonResponse(res);
     setLoading(false);
     if (!res.ok) {
-      setError(data.error ?? "Could not schedule assistant");
+      setError(String(data.error ?? "Could not schedule assistant"));
       return;
     }
-    if (data.resolvedMeetingUrl && data.resolvedMeetingUrl !== url) {
-      setResolvedHint(`Using Meet link: ${data.resolvedMeetingUrl}`);
-      setMeetingUrl(data.resolvedMeetingUrl);
+    const resolved =
+      typeof data.resolvedMeetingUrl === "string"
+        ? data.resolvedMeetingUrl
+        : null;
+    if (resolved && resolved !== url) {
+      setResolvedHint(`Using Meet link: ${resolved}`);
+      setMeetingUrl(resolved);
     }
     setOn(true);
     router.refresh();
@@ -63,16 +68,60 @@ export function AssistantToggle({
     const res = await fetch("/api/meeting-bots", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ meetingId }),
     });
-    const data = await res.json();
+    const data = await readJsonResponse(res);
     setLoading(false);
     if (!res.ok) {
-      setError(data.error ?? "Could not cancel assistant");
+      setError(String(data.error ?? "Could not cancel assistant"));
       return;
     }
     setOn(false);
     router.refresh();
+  }
+
+  async function sendBotNow() {
+    const url = meetingUrl.trim();
+    if (!url) return;
+
+    setLoading(true);
+    setError(null);
+
+    const res = await fetch("/api/meeting-bots/join-now", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        meetingUrl: url,
+        meetingId,
+        botName,
+      }),
+    });
+
+    const data = await readJsonResponse(res);
+    setLoading(false);
+
+    if (res.status === 401) {
+      setError(String(data.error ?? "Please sign in again."));
+      window.location.href = `/login?next=${encodeURIComponent(`/dashboard/meetings/${meetingId}`)}`;
+      return;
+    }
+
+    if (!res.ok) {
+      setError(String(data.error ?? "Could not send AI bot"));
+      return;
+    }
+
+    setOn(true);
+    const provider =
+      typeof data.provider === "string" ? data.provider : "simulation";
+    const params = new URLSearchParams({
+      joined: "1",
+      bot: botName,
+      mode: provider,
+    });
+    window.location.assign(`/dashboard/meetings/${meetingId}?${params}`);
   }
 
   async function toggle() {
@@ -95,8 +144,9 @@ export function AssistantToggle({
             className="text-sm"
           />
           <p className="text-xs text-muted-foreground">
-            Paste a direct Google Meet URL or a Google Calendar event link — we
-            resolve Calendar pages to the Meet join URL before the bot joins.
+            Sends <strong className="font-medium text-foreground">{botName}</strong>{" "}
+            into the call — you do not join as yourself. Admit the bot from the
+            Meet waiting room if you host.
           </p>
         </div>
       )}
@@ -116,38 +166,19 @@ export function AssistantToggle({
           type="button"
           variant="default"
           disabled={loading}
-          onClick={async () => {
-            setLoading(true);
-            setError(null);
-            const res = await fetch("/api/meeting-bots/join-now", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                meetingUrl: meetingUrl.trim(),
-                meetingId,
-                ...(botName ? { botName } : {}),
-              }),
-            });
-            const data = await res.json();
-            setLoading(false);
-            if (!res.ok) {
-              setError(data.error ?? "Join failed");
-              return;
-            }
-            setOn(true);
-            setSuccess(data.message);
-            router.push(`/dashboard/meetings/${data.meetingId ?? meetingId}`);
-            router.refresh();
-          }}
+          onClick={sendBotNow}
         >
-          Send AI to join now
+          {loading ? "Sending bot…" : "Send AI to join now"}
         </Button>
       )}
       {resolvedHint && (
         <p className="text-xs text-primary">{resolvedHint}</p>
       )}
-      {success && <p className="text-xs text-primary">{success}</p>}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

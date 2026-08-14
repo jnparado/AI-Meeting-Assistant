@@ -9,6 +9,12 @@ import { validateMeetingUrl } from "@/lib/bot/validate-meeting-url";
 import { SubscriptionError } from "@/lib/bot/credits";
 import { hasRecall } from "@/lib/env";
 import { getSupabaseSqlEditorUrl } from "@/lib/supabase/config";
+import {
+  getRecallApiBase,
+  getRecallRegion,
+  getRecallSetupHint,
+  getRecallWebhookUrl,
+} from "@/lib/bot/recall-config";
 
 const joinNowSchema = z.object({
   meetingUrl: z.string().min(8).max(2048),
@@ -98,7 +104,9 @@ export async function POST(request: Request) {
       ? ` Open SQL Editor: ${sqlEditor}`
       : " Open Supabase → SQL Editor.";
 
-    if (
+    if (/Recall \(|RECALL_API_KEY|RECALL_REGION/i.test(message)) {
+      message = `${message} ${getRecallSetupHint()}`;
+    } else if (
       /null value in column "provider"/i.test(message) ||
       /schema cache/i.test(message) ||
       /RUN_IN_SQL_EDITOR/i.test(message) ||
@@ -199,9 +207,13 @@ export async function GET() {
 
   return NextResponse.json({
     recallConfigured: hasRecall(),
+    recallRegion: getRecallRegion(),
+    recallApiBase: getRecallApiBase(),
+    recallWebhookUrl: getRecallWebhookUrl(),
+    recallSetup: getRecallSetupHint(),
     mode: hasRecall() ? "live" : "simulation",
     databaseFunctions: checks,
     sqlEditorUrl,
-    docs: "https://docs.recall.ai/",
+    docs: "https://docs.recall.ai/docs/quickstart",
   });
 }

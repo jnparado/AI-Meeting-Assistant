@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getRecallApiBase } from "@/lib/bot/recall-config";
 import { mapRecallStatus } from "@/lib/bot/recall";
 import {
   persistMeetingResults,
   processTranscriptWithAI,
 } from "@/lib/ai/summarize-meeting";
 import type { TranscriptSegment } from "@/lib/types/database";
+import { hasRecall } from "@/lib/env";
 
 export async function POST(request: Request) {
   const secret = request.headers.get("x-recall-webhook-secret");
@@ -16,31 +18,54 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = await request.json();
-  const event = payload.event as string;
-  const data = payload.data ?? payload;
+  const payload = (await request.json()) as Record<string, unknown>;
+  const event = String(payload.event ?? "");
+  const data = (payload.data ?? payload) as Record<string, unknown>;
 
   const supabase = createServiceClient();
 
-  if (event === "bot.status_change") {
-    const botId = data.bot?.metadata?.internal_bot_id as string | undefined;
-    const externalId = data.bot?.id as string | undefined;
-    const statusCode = data.status?.code as string;
+  const botBlock = (data.bot ?? data) as {
+    id?: string;
+    metadata?: { internal_bot_id?: string };
+  };
+  const statusBlock = (data.data ?? data.status ?? {}) as {
+    code?: string;
+    sub_code?: string | null;
+  };
 
-    const query = supabase.from("meeting_bots").update({
-      status: mapRecallStatus(statusCode),
+  const botId = botBlock.metadata?.internal_bot_id;
+  const externalId = botBlock.id;
+  const statusCode =
+    statusBlock.code ??
+    (event.startsWith("bot.") ? event.slice("bot.".length) : undefined);
+
+  const isBotEvent =
+    event === "bot.status_change" ||
+    event.startsWith("bot.") ||
+    Boolean(statusCode);
+
+  if (isBotEvent && statusCode) {
+    const mapped = mapRecallStatus(statusCode);
+    const patch: Record<string, unknown> = {
+      status: mapped,
       updated_at: new Date().toISOString(),
-      ...(statusCode === "in_call_not_recording"
-        ? { joined_at: new Date().toISOString() }
-        : {}),
-      ...(statusCode === "in_call_recording"
-        ? {
-            joined_at: new Date().toISOString(),
-            recording_started_at: new Date().toISOString(),
-          }
-        : {}),
-    });
+    };
 
+    if (statusCode === "in_call_not_recording" || statusCode === "joined") {
+      patch.joined_at = new Date().toISOString();
+    }
+    if (statusCode === "in_call_recording" || statusCode === "recording") {
+      patch.joined_at = new Date().toISOString();
+      patch.recording_started_at = new Date().toISOString();
+    }
+    if (statusCode === "fatal" || statusCode === "failed") {
+      patch.failure_reason = statusBlock.sub_code ?? "Recall bot failed";
+    }
+    if (statusCode === "done" || statusCode === "completed") {
+      patch.completed_at = new Date().toISOString();
+    }
+
+    const query = supabase.from("meeting_bots").update(patch);
     if (botId) {
       await query.eq("id", botId);
     } else if (externalId) {
@@ -48,11 +73,30 @@ export async function POST(request: Request) {
     }
   }
 
+  if (event === "bot.done" && externalId && hasRecall()) {
+    void finalizeRecallBot(externalId, supabase).catch((err) => {
+      console.error("finalizeRecallBot:", err);
+    });
+  }
+
   if (event === "transcript.done" || event === "recording.done") {
     await finalizeFromRecall(data, supabase);
   }
 
   return NextResponse.json({ received: true });
+}
+
+async function finalizeRecallBot(
+  externalBotId: string,
+  supabase: ReturnType<typeof createServiceClient>,
+) {
+  const res = await fetch(`${getRecallApiBase()}/api/v1/bot/${externalBotId}/`, {
+    headers: { Authorization: `Token ${process.env.RECALL_API_KEY}` },
+  });
+  if (!res.ok) return;
+
+  const botPayload = (await res.json()) as Record<string, unknown>;
+  await finalizeFromRecall({ bot: botPayload, recording: botPayload }, supabase);
 }
 
 async function finalizeFromRecall(
@@ -80,8 +124,15 @@ async function finalizeFromRecall(
 
   const transcriptUrl =
     (data.transcript as { download_url?: string })?.download_url ??
-    (data.recording as { media_shortcuts?: { transcript?: { download_url?: string } } })
-      ?.media_shortcuts?.transcript?.download_url;
+    (
+      data.recording as {
+        media_shortcuts?: { transcript?: { data?: { download_url?: string } } };
+      }
+    )?.media_shortcuts?.transcript?.data?.download_url ??
+    (
+      (data.bot as { recordings?: { media_shortcuts?: { transcript?: { data?: { download_url?: string } } } }[] })
+        ?.recordings?.[0]?.media_shortcuts?.transcript?.data?.download_url
+    );
 
   let segments: TranscriptSegment[] = [];
   let fullText = "";
@@ -98,7 +149,18 @@ async function finalizeFromRecall(
   const meetingTitle =
     (bot.meetings as { title?: string } | null)?.title ?? "Meeting";
 
-  const insights = await processTranscriptWithAI(meetingTitle, fullText, segments);
+  let insights;
+  try {
+    insights = await processTranscriptWithAI(meetingTitle, fullText, segments);
+  } catch (err) {
+    console.error("processTranscriptWithAI:", err);
+    insights = {
+      summary: fullText.slice(0, 500) || "Meeting recorded (AI summary unavailable).",
+      key_topics: [],
+      decisions: [],
+      action_items: [],
+    };
+  }
 
   await persistMeetingResults(
     bot.meeting_id,
@@ -119,9 +181,7 @@ function normalizeRecallTranscript(raw: unknown): TranscriptSegment[] {
       text?: string;
     };
     const text =
-      row.text ??
-      row.words?.map((w) => w.text ?? "").join(" ") ??
-      "";
+      row.text ?? row.words?.map((w) => w.text ?? "").join(" ") ?? "";
     return { speaker: row.speaker, text };
   });
 }

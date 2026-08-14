@@ -7,6 +7,7 @@
     "seed:test-user": "node --env-file=.env.local scripts/seed-test-user.mjs",
     "db:fix": "node --env-file=.env.local scripts/apply-join-sql.mjs",
     "db:patch": "node --env-file=.env.local scripts/apply-patch-sql.mjs",
+    "recall:test": "node scripts/test-recall.mjs",
     "db:diagnose": "node --env-file=.env.local scripts/diagnose-bot-db.mjs",
     "db:simulate-join": "node --env-file=.env.local scripts/simulate-join-db.mjs",
     "build": "next build",

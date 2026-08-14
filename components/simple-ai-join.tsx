@@ -7,38 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { getSupabaseSqlEditorUrl } from "@/lib/supabase/sql-editor-url";
-
-async function readJsonResponse(res: Response): Promise<Record<string, unknown>> {
-  const type = res.headers.get("content-type") ?? "";
-  if (!type.includes("application/json")) {
-    if (res.status === 401) {
-      return { error: "Your session expired. Please sign in again." };
-    }
-    if (res.status >= 500) {
-      return {
-        error:
-          "Server error — your Mac may be out of disk space. Free space, restart npm run dev, then try again.",
-      };
-    }
-    if (res.status === 404) {
-      return {
-        error:
-          "Join API not found — restart npm run dev (disk full can break the dev server).",
-      };
-    }
-    const snippet = (await res.text()).slice(0, 120);
-    return {
-      error: snippet
-        ? `Unexpected server response (${res.status}). Try refresh or restart dev server.`
-        : "Unexpected server response. Try again or refresh the page.",
-    };
-  }
-  try {
-    return (await res.json()) as Record<string, unknown>;
-  } catch {
-    return { error: "Could not read server response. Try again." };
-  }
-}
+import { readJsonResponse } from "@/lib/client/read-json-response";
 
 type Props = {
   initialUrl?: string;

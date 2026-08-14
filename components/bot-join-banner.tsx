@@ -33,11 +33,25 @@ export function BotJoinBanner({ botName }: Props) {
       </p>
       {isSimulation ? (
         <p className="mt-2 text-xs text-amber-800 dark:text-amber-400">
-          Demo mode: add <code className="text-foreground">RECALL_API_KEY</code> in
-          Vercel / <code className="text-foreground">.env.local</code> for a real
-          bot to appear on Google Meet.
+          Demo mode — no real bot on Google Meet yet. Add{" "}
+          <code className="text-foreground">RECALL_API_KEY</code> to{" "}
+          <code className="text-foreground">.env.local</code> and Vercel, then run{" "}
+          <code className="text-foreground">npm run recall:test</code>. Get a key at{" "}
+          <a
+            href="https://www.recall.ai/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium underline"
+          >
+            recall.ai
+          </a>
+          .
         </p>
-      ) : null}
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          The bot should appear in the Google Meet waiting room within ~30 seconds.
+        </p>
+      )}
       <p className="mt-2 text-xs text-muted-foreground">
         Want to join the call yourself too?{" "}
         <Link
