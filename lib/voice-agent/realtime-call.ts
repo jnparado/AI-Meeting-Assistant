@@ -1,8 +1,9 @@
 import {
-  getRecallRealtimeModel,
   getRecallVoiceAgentInstructions,
   getRecallVoiceAgentVoice,
+  getRecallRealtimeModel,
 } from "@/lib/bot/recall-voice-agent";
+import { getVoiceAgentApiBase } from "@/lib/env";
 
 export type RealtimeConnectResult =
   | { mode: "calls"; answerSdp: string }
@@ -10,6 +11,7 @@ export type RealtimeConnectResult =
       mode: "legacy";
       clientSecret: string;
       model: string;
+      apiBase: string;
     };
 
 function buildSessionPayload(botName?: string | null) {
@@ -28,24 +30,25 @@ function buildSessionPayload(botName?: string | null) {
       },
       output: { voice },
     },
-    // Legacy session fields — ignored by newer API if unsupported.
     voice,
     input_audio_transcription: { model: "whisper-1" },
   };
 }
 
-/** OpenAI unified WebRTC entrypoint (POST /v1/realtime/calls). */
+/** Unified WebRTC entrypoint (POST /v1/realtime/calls) — OpenAI + xAI compatible. */
 export async function createRealtimeCall(
   offerSdp: string,
   apiKey: string,
+  apiBase: string,
   botName?: string | null,
 ): Promise<RealtimeConnectResult> {
+  const base = apiBase.replace(/\/$/, "");
   const session = JSON.stringify(buildSessionPayload(botName));
   const form = new FormData();
   form.set("sdp", offerSdp);
   form.set("session", session);
 
-  const res = await fetch("https://api.openai.com/v1/realtime/calls", {
+  const res = await fetch(`${base}/realtime/calls`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -59,19 +62,19 @@ export async function createRealtimeCall(
   }
 
   if (res.status !== 404 && res.status !== 400) {
-    throw new Error(`OpenAI Realtime call failed (${res.status}): ${text.slice(0, 400)}`);
+    throw new Error(`Realtime call failed (${res.status}): ${text.slice(0, 400)}`);
   }
 
-  return createLegacyRealtimeSession(apiKey, botName);
+  return createLegacyRealtimeSession(apiKey, base, botName);
 }
 
-/** Fallback for accounts still on ephemeral session tokens. */
 async function createLegacyRealtimeSession(
   apiKey: string,
+  apiBase: string,
   botName?: string | null,
 ): Promise<RealtimeConnectResult> {
   const payload = buildSessionPayload(botName);
-  const res = await fetch("https://api.openai.com/v1/realtime/sessions", {
+  const res = await fetch(`${apiBase.replace(/\/$/, "")}/realtime/sessions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -88,7 +91,7 @@ async function createLegacyRealtimeSession(
 
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`OpenAI Realtime session failed (${res.status}): ${text.slice(0, 400)}`);
+    throw new Error(`Realtime session failed (${res.status}): ${text.slice(0, 400)}`);
   }
 
   const session = JSON.parse(text) as {
@@ -96,13 +99,14 @@ async function createLegacyRealtimeSession(
   };
   const clientSecret = session.client_secret?.value;
   if (!clientSecret) {
-    throw new Error("OpenAI did not return a Realtime client secret.");
+    throw new Error("Realtime API did not return a client secret.");
   }
 
   return {
     mode: "legacy",
     clientSecret,
     model: payload.model,
+    apiBase: apiBase.replace(/\/$/, ""),
   };
 }
 
@@ -110,22 +114,21 @@ export async function exchangeLegacyRealtimeSdp(
   offerSdp: string,
   clientSecret: string,
   model: string,
+  apiBase?: string,
 ): Promise<string> {
-  const res = await fetch(
-    `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
-    {
-      method: "POST",
-      body: offerSdp,
-      headers: {
-        Authorization: `Bearer ${clientSecret}`,
-        "Content-Type": "application/sdp",
-      },
+  const base = (apiBase || getVoiceAgentApiBase()).replace(/\/$/, "");
+  const res = await fetch(`${base}/realtime?model=${encodeURIComponent(model)}`, {
+    method: "POST",
+    body: offerSdp,
+    headers: {
+      Authorization: `Bearer ${clientSecret}`,
+      "Content-Type": "application/sdp",
     },
-  );
+  });
 
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`OpenAI Realtime SDP exchange failed (${res.status}): ${text.slice(0, 400)}`);
+    throw new Error(`Realtime SDP exchange failed (${res.status}): ${text.slice(0, 400)}`);
   }
 
   return text;

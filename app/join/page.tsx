@@ -25,7 +25,16 @@ export default async function JoinPage({
     <MarketingShell showAuthLinks={false} headerRight={<HeaderUserArea />}>
       <main className="mx-auto flex max-w-lg flex-col items-center px-4 pb-20 pt-6 md:pt-12">
         <SimpleAiJoin initialUrl={params.url ?? ""} />
-        <p className="mt-8 max-w-sm text-center text-xs leading-relaxed text-muted-foreground">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Need a new meeting?{" "}
+          <a
+            href="/dashboard/schedule"
+            className="text-primary font-medium underline-offset-4 hover:underline"
+          >
+            Schedule Google Meet &amp; send invites
+          </a>
+        </p>
+        <p className="mt-4 max-w-sm text-center text-xs leading-relaxed text-muted-foreground">
           MeetMind sends <strong className="font-medium text-foreground">{DEFAULT_BOT_NAME}</strong>{" "}
           into the call — you are not joining as yourself. If you host, admit the
           bot from the Google Meet waiting room. Summary and transcript appear on

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bot, Calendar, Sparkles, Video } from "lucide-react";
+import { Bot, Calendar, Settings, Sparkles, Video } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -20,6 +20,13 @@ const actions = [
     primary: true,
   },
   {
+    href: "/dashboard/schedule",
+    title: "Schedule Google Meet",
+    description: "Create a Meet link, email guests, and add it to your calendar.",
+    icon: Calendar,
+    primary: true,
+  },
+  {
     href: "/dashboard/meetings",
     title: "Meetings",
     description: "Upcoming calls, summaries, and assistant settings.",
@@ -28,14 +35,14 @@ const actions = [
   {
     href: "/dashboard/connect",
     title: "Connect calendar",
-    description: "Sync Google or Microsoft to schedule bots automatically.",
-    icon: Calendar,
+    description: "Link Google Calendar to import and schedule meetings.",
+    icon: Bot,
   },
   {
     href: "/dashboard/settings",
     title: "Settings",
     description: "Workspace, integrations, and preferences.",
-    icon: Bot,
+    icon: Settings,
   },
 ] as const;
 

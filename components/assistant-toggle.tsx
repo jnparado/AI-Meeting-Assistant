@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { readJsonResponse } from "@/lib/client/read-json-response";
+import { formatFetchError } from "@/lib/client/format-fetch-error";
 import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
 
 type Props = {
@@ -43,51 +44,61 @@ export function AssistantToggle({
     setError(null);
     setResolvedHint(null);
 
-    const res = await fetch("/api/meeting-bots", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        meetingId,
-        meetingUrl: url,
-        botName: displayName,
-      }),
-    });
-    const data = await readJsonResponse(res);
-    setLoading(false);
-    if (!res.ok) {
-      setError(String(data.error ?? "Could not schedule assistant"));
-      return;
+    try {
+      const res = await fetch("/api/meeting-bots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          meetingId,
+          meetingUrl: url,
+          botName: displayName,
+        }),
+      });
+      const data = await readJsonResponse(res);
+      if (!res.ok) {
+        setError(String(data.error ?? "Could not schedule assistant"));
+        return;
+      }
+      const resolved =
+        typeof data.resolvedMeetingUrl === "string"
+          ? data.resolvedMeetingUrl
+          : null;
+      if (resolved && resolved !== url) {
+        setResolvedHint(`Using Meet link: ${resolved}`);
+        setMeetingUrl(resolved);
+      }
+      setOn(true);
+      router.refresh();
+    } catch (err) {
+      setError(formatFetchError(err));
+    } finally {
+      setLoading(false);
     }
-    const resolved =
-      typeof data.resolvedMeetingUrl === "string"
-        ? data.resolvedMeetingUrl
-        : null;
-    if (resolved && resolved !== url) {
-      setResolvedHint(`Using Meet link: ${resolved}`);
-      setMeetingUrl(resolved);
-    }
-    setOn(true);
-    router.refresh();
   }
 
   async function cancel() {
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/meeting-bots", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ meetingId }),
-    });
-    const data = await readJsonResponse(res);
-    setLoading(false);
-    if (!res.ok) {
-      setError(String(data.error ?? "Could not cancel assistant"));
-      return;
+    try {
+      const res = await fetch("/api/meeting-bots", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ meetingId }),
+      });
+      const data = await readJsonResponse(res);
+      if (!res.ok) {
+        setError(String(data.error ?? "Could not cancel assistant"));
+        return;
+      }
+      setOn(false);
+      router.refresh();
+    } catch (err) {
+      setError(formatFetchError(err));
+    } finally {
+      setLoading(false);
     }
-    setOn(false);
-    router.refresh();
   }
 
   async function sendBotNow() {
@@ -97,40 +108,45 @@ export function AssistantToggle({
     setLoading(true);
     setError(null);
 
-    const res = await fetch("/api/meeting-bots/join-now", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        meetingUrl: url,
-        meetingId,
-        botName: displayName,
-      }),
-    });
+    try {
+      const res = await fetch("/api/meeting-bots/join-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          meetingUrl: url,
+          meetingId,
+          botName: displayName,
+        }),
+      });
 
-    const data = await readJsonResponse(res);
-    setLoading(false);
+      const data = await readJsonResponse(res);
 
-    if (res.status === 401) {
-      setError(String(data.error ?? "Please sign in again."));
-      window.location.href = `/login?next=${encodeURIComponent(`/dashboard/meetings/${meetingId}`)}`;
-      return;
+      if (res.status === 401) {
+        setError(String(data.error ?? "Please sign in again."));
+        window.location.href = `/login?next=${encodeURIComponent(`/dashboard/meetings/${meetingId}`)}`;
+        return;
+      }
+
+      if (!res.ok) {
+        setError(String(data.error ?? "Could not send AI bot"));
+        return;
+      }
+
+      setOn(true);
+      const provider =
+        typeof data.provider === "string" ? data.provider : "simulation";
+      const params = new URLSearchParams({
+        joined: data.alreadyActive === true ? "existing" : "1",
+        bot: displayName,
+        mode: provider,
+      });
+      window.location.assign(`/dashboard/meetings/${meetingId}?${params}`);
+    } catch (err) {
+      setError(formatFetchError(err));
+    } finally {
+      setLoading(false);
     }
-
-    if (!res.ok) {
-      setError(String(data.error ?? "Could not send AI bot"));
-      return;
-    }
-
-    setOn(true);
-    const provider =
-      typeof data.provider === "string" ? data.provider : "simulation";
-    const params = new URLSearchParams({
-      joined: data.alreadyActive === true ? "existing" : "1",
-      bot: displayName,
-      mode: provider,
-    });
-    window.location.assign(`/dashboard/meetings/${meetingId}?${params}`);
   }
 
   async function toggle() {

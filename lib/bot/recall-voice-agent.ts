@@ -1,15 +1,18 @@
 import { getRecallPublicAppUrl } from "@/lib/bot/recall-config";
-import { getAppUrl, hasOpenAI } from "@/lib/env";
+import { getVoiceAgentProvider, hasVoiceAgentLlm } from "@/lib/env";
 import { getDefaultBotName } from "@/lib/bot/default-bot-name";
 import { createVoiceAgentToken } from "@/lib/voice-agent/token";
 
-export const DEFAULT_RECALL_REALTIME_MODEL =
+export const DEFAULT_OPENAI_REALTIME_MODEL =
   "gpt-4o-realtime-preview-2024-12-17";
+export const DEFAULT_XAI_REALTIME_MODEL = "grok-voice-latest";
 
 export function getRecallRealtimeModel(): string {
-  return (
-    process.env.RECALL_VOICE_AGENT_MODEL?.trim() || DEFAULT_RECALL_REALTIME_MODEL
-  );
+  const custom = process.env.RECALL_VOICE_AGENT_MODEL?.trim();
+  if (custom) return custom;
+  return getVoiceAgentProvider() === "xai"
+    ? DEFAULT_XAI_REALTIME_MODEL
+    : DEFAULT_OPENAI_REALTIME_MODEL;
 }
 
 const DEFAULT_AGENT_NAME = "John";
@@ -30,7 +33,7 @@ export function isRecallVoiceAgentEnabled(): boolean {
 export function canUseRecallVoiceAgent(): boolean {
   return (
     isRecallVoiceAgentEnabled() &&
-    hasOpenAI() &&
+    hasVoiceAgentLlm() &&
     isRecallVoiceAgentUrlConfigured()
   );
 }
@@ -78,7 +81,9 @@ export function getRecallVoiceAgentTeamLabel(): string {
 }
 
 export function getRecallVoiceAgentVoice(): string {
-  return process.env.RECALL_VOICE_AGENT_VOICE?.trim() || "verse";
+  const custom = process.env.RECALL_VOICE_AGENT_VOICE?.trim();
+  if (custom) return custom;
+  return getVoiceAgentProvider() === "xai" ? "eve" : "verse";
 }
 
 export function getRecallVoiceAgentPageUrl(botName?: string): string | null {

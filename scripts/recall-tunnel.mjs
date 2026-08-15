@@ -34,7 +34,9 @@ function tryPatchEnv(publicUrl) {
     }
     writeFileSync(envPath, text);
     console.log(`\nUpdated .env.local → RECALL_PUBLIC_APP_URL=${publicUrl}`);
-    console.log("Restart npm run dev, then send a NEW bot to Meet.\n");
+    console.log(
+      "Restart npm run dev (next.config allows *.trycloudflare.com), then send a NEW bot.\n",
+    );
   } catch {
     console.log(`\nAdd to .env.local:\nRECALL_PUBLIC_APP_URL=${publicUrl}\n`);
   }

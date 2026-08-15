@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/dashboard/meetings", label: "Meetings", match: "/dashboard/meetings" },
+  { href: "/dashboard/schedule", label: "Schedule", match: "/dashboard/schedule" },
   { href: "/join", label: "Join with AI", match: "/join" },
   { href: "/dashboard/connect", label: "Calendar", match: "/dashboard/connect" },
   { href: "/dashboard/settings", label: "Settings", match: "/dashboard/settings" },

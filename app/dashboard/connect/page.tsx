@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function ConnectCalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string }>;
+  searchParams: Promise<{ connected?: string; error?: string; detail?: string }>;
 }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -30,13 +30,15 @@ export default async function ConnectCalendarPage({
 
   const organization = await getActiveOrganization(user.id);
 
-  const { count } = await supabase
+  const { count: googleCount } = await supabase
     .from("calendar_connections")
     .select("*", { count: "exact", head: true })
     .eq("user_id", user.id)
-    .eq("organization_id", organization?.id ?? "");
+    .eq("organization_id", organization?.id ?? "")
+    .eq("provider", "google");
 
-  const hasConnection = (count ?? 0) > 0;
+  const hasGoogleConnection = (googleCount ?? 0) > 0;
+  const hasConnection = hasGoogleConnection;
   const googleOAuthConfigured = Boolean(process.env.GOOGLE_CLIENT_ID?.trim());
   const microsoftOAuthConfigured = Boolean(process.env.MICROSOFT_CLIENT_ID?.trim());
 
@@ -55,16 +57,31 @@ export default async function ConnectCalendarPage({
           </p>
         )}
         {params.error && (
-          <p className="mt-2 text-sm text-destructive">
-            Calendar connection failed. If Google showed{" "}
-            <strong>redirect_uri_mismatch</strong>, add the redirect URI below in
-            Google Cloud Console, then try again.
-          </p>
+          <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <p className="font-medium">Calendar connection failed</p>
+            <p className="mt-1">
+              {params.error === "google" || params.error === "token"
+                ? params.detail ??
+                  "Google rejected the connection. Check redirect URIs below."
+                : params.error === "db"
+                  ? `Could not save connection: ${params.detail ?? "database error"}`
+                  : params.detail ??
+                    "OAuth session failed. Click Connect again (avoid the browser back button)."}
+            </p>
+            {(params.error === "google" ||
+              params.error === "token" ||
+              params.detail?.includes("redirect_uri")) && (
+              <p className="mt-2 text-xs">
+                If Google showed <strong>redirect_uri_mismatch</strong>, add every
+                redirect URI listed below in Google Cloud Console.
+              </p>
+            )}
+          </div>
         )}
       </div>
 
       <GoogleCalendarRedirectHint
-        showAlways={Boolean(params.error)}
+        showAlways={Boolean(params.error) || !hasGoogleConnection}
         enabled={googleOAuthConfigured}
       />
 
@@ -115,12 +132,22 @@ export default async function ConnectCalendarPage({
             <CardTitle className="text-base">Import meetings</CardTitle>
             <CardDescription>
               Pull the next 30 days of events with video links into your company
-              workspace.
+              workspace, or{" "}
+              <Link
+                href="/dashboard/schedule"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                schedule a new Google Meet
+              </Link>{" "}
+              with email invites.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
+            <Link href="/dashboard/schedule" className={cn(buttonVariants())}>
+              Schedule Google Meet
+            </Link>
             <SyncCalendarButton />
-            <Link href="/dashboard/meetings" className={cn(buttonVariants())}>
+            <Link href="/dashboard/meetings" className={cn(buttonVariants({ variant: "outline" }))}>
               Go to meetings
             </Link>
           </CardContent>

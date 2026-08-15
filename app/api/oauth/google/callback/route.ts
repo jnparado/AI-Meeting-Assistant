@@ -10,16 +10,58 @@ import {
   fetchGooglePrimaryCalendarId,
 } from "@/lib/calendar/google";
 
+function safeReturnPath(value: string | null | undefined): string {
+  if (!value?.startsWith("/") || value.startsWith("//")) {
+    return "/dashboard/connect";
+  }
+  return value;
+}
+
+function redirectWithError(
+  returnTo: string,
+  code: string,
+  detail?: string,
+): NextResponse {
+  const url = new URL(`${getAppUrl()}${returnTo}`);
+  url.searchParams.set("error", code);
+  if (detail) {
+    url.searchParams.set("detail", detail.slice(0, 240));
+  }
+  return NextResponse.redirect(url.toString());
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
+  const googleError = searchParams.get("error");
   const cookieStore = await cookies();
   const savedState = cookieStore.get("oauth_state_google")?.value;
   const organizationId = cookieStore.get("oauth_organization_id")?.value;
+  const returnTo = safeReturnPath(
+    cookieStore.get("oauth_return_to")?.value ?? "/dashboard/connect",
+  );
+
+  cookieStore.delete("oauth_return_to");
+
+  if (googleError) {
+    return redirectWithError(
+      returnTo,
+      "google",
+      searchParams.get("error_description") ?? googleError,
+    );
+  }
 
   if (!code || !state || state !== savedState || !organizationId) {
-    return NextResponse.redirect(`${getAppUrl()}/dashboard/connect?error=oauth`);
+    return redirectWithError(
+      returnTo,
+      "oauth",
+      !code
+        ? "Missing authorization code from Google."
+        : state !== savedState
+          ? "OAuth session expired — click Connect again (do not use back button)."
+          : "Missing workspace context — try Connect again.",
+    );
   }
 
   cookieStore.delete("oauth_state_google");
@@ -30,7 +72,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.redirect(`${getAppUrl()}/login`);
+    return NextResponse.redirect(`${getAppUrl()}/login?next=${encodeURIComponent(returnTo)}`);
   }
 
   const redirectUri = getGoogleCalendarRedirectUri();
@@ -46,11 +88,20 @@ export async function GET(request: Request) {
     }),
   });
 
+  const tokenText = await tokenRes.text();
   if (!tokenRes.ok) {
-    return NextResponse.redirect(`${getAppUrl()}/dashboard/connect?error=token`);
+    console.error("[oauth/google/callback] token exchange failed:", tokenText);
+    let detail = `Token exchange failed (${tokenRes.status}).`;
+    try {
+      const parsed = JSON.parse(tokenText) as { error_description?: string; error?: string };
+      detail = parsed.error_description ?? parsed.error ?? detail;
+    } catch {
+      /* use default */
+    }
+    return redirectWithError(returnTo, "token", detail);
   }
 
-  const tokens = (await tokenRes.json()) as {
+  const tokens = JSON.parse(tokenText) as {
     access_token: string;
     refresh_token?: string;
     expires_in?: number;
@@ -76,7 +127,7 @@ export async function GET(request: Request) {
   });
 
   const service = createServiceClient();
-  await service.from("calendar_connections").upsert(
+  const { error: upsertError } = await service.from("calendar_connections").upsert(
     {
       user_id: user.id,
       organization_id: organizationId,
@@ -93,5 +144,12 @@ export async function GET(request: Request) {
     { onConflict: "user_id,organization_id,provider" },
   );
 
-  return NextResponse.redirect(`${getAppUrl()}/dashboard/connect?connected=google`);
+  if (upsertError) {
+    console.error("[oauth/google/callback] upsert failed:", upsertError);
+    return redirectWithError(returnTo, "db", upsertError.message);
+  }
+
+  const successUrl = new URL(`${getAppUrl()}${returnTo}`);
+  successUrl.searchParams.set("connected", "google");
+  return NextResponse.redirect(successUrl.toString());
 }

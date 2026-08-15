@@ -1,6 +1,9 @@
-import OpenAI from "openai";
 import { z } from "zod";
-import { hasOpenAI } from "@/lib/env";
+import {
+  createMeetingLlmClient,
+  getMeetingChatModel,
+  hasMeetingLlm,
+} from "@/lib/ai/llm-client";
 import type { TranscriptSegment } from "@/lib/types/database";
 
 const summarySchema = z.object({
@@ -23,14 +26,14 @@ export async function processTranscriptWithAI(
   transcriptText: string,
   segments: TranscriptSegment[],
 ): Promise<MeetingInsights> {
-  if (!hasOpenAI()) {
+  if (!hasMeetingLlm()) {
     return fallbackInsights(meetingTitle, transcriptText);
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = createMeetingLlmClient()!;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: getMeetingChatModel(),
     response_format: { type: "json_object" },
     messages: [
       {

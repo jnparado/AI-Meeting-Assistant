@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { formatFetchError } from "@/lib/client/format-fetch-error";
 import { Loader2, MessageCircleQuestion, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +57,7 @@ export function MeetingQnaPanel({
     speaker: string;
     text: string;
   } | null>(null);
+  const [pollError, setPollError] = useState<string | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const canInteract = isLive || hasTranscript || segments.length > 0;
@@ -81,11 +83,14 @@ export function MeetingQnaPanel({
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as LivePayload;
         if (cancelled) return;
+        setPollError(null);
         setIsLive(data.isLive);
         setSegments(data.segments ?? []);
         setLivePartial(data.livePartial);
-      } catch {
-        /* ignore poll errors */
+      } catch (err) {
+        if (!cancelled) {
+          setPollError(formatFetchError(err));
+        }
       }
     }
 
@@ -131,8 +136,8 @@ export function MeetingQnaPanel({
           text: data.answer ?? "",
         },
       ]);
-    } catch {
-      setError("Request failed");
+    } catch (err) {
+      setError(formatFetchError(err));
     } finally {
       setLoading(false);
     }
@@ -274,6 +279,12 @@ export function MeetingQnaPanel({
         {error && (
           <p className="text-sm text-destructive" role="alert">
             {error}
+          </p>
+        )}
+
+        {pollError && !error && (
+          <p className="text-sm text-amber-700 dark:text-amber-400" role="status">
+            {pollError}
           </p>
         )}
       </CardContent>

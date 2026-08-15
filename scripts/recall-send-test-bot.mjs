@@ -55,10 +55,11 @@ function voiceAgentSecret() {
 
 function voiceAgentEnabled() {
   const v = process.env.RECALL_VOICE_AGENT_ENABLED?.trim().toLowerCase();
-  return (
-    Boolean(process.env.OPENAI_API_KEY?.trim()) &&
-    (v === "1" || v === "true" || v === "yes")
-  );
+  const hasLlm =
+    Boolean(process.env.XAI_API_KEY?.trim()) ||
+    Boolean(process.env.GROK_API_KEY?.trim()) ||
+    Boolean(process.env.OPENAI_API_KEY?.trim());
+  return hasLlm && (v === "1" || v === "true" || v === "yes");
 }
 
 function voiceAgentPageUrl(name) {

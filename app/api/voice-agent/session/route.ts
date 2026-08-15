@@ -2,14 +2,22 @@ import { NextResponse } from "next/server";
 import {
   getRecallVoiceAgentDisplayName,
   getRecallVoiceAgentGreeting,
+  getRecallVoiceAgentInstructions,
   getRecallVoiceAgentTeamLabel,
+  getRecallVoiceAgentVoice,
   isRecallVoiceAgentEnabled,
 } from "@/lib/bot/recall-voice-agent";
-import { hasOpenAI } from "@/lib/env";
+import {
+  getVoiceAgentApiBase,
+  getVoiceAgentApiKey,
+  getVoiceAgentProvider,
+  hasVoiceAgentLlm,
+} from "@/lib/env";
 import {
   createRealtimeCall,
   exchangeLegacyRealtimeSdp,
-} from "@/lib/voice-agent/openai-realtime";
+} from "@/lib/voice-agent/realtime-call";
+import { createXaiClientSecret } from "@/lib/voice-agent/xai-realtime";
 import { verifyVoiceAgentToken } from "@/lib/voice-agent/token";
 
 export async function POST(request: Request) {
@@ -20,11 +28,11 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!hasOpenAI()) {
+  if (!hasVoiceAgentLlm()) {
     return NextResponse.json(
       {
         error:
-          "OPENAI_API_KEY is required for the voice agent. Add credits at platform.openai.com.",
+          "Set XAI_API_KEY (Grok Voice) or OPENAI_API_KEY for the talking bot.",
       },
       { status: 503 },
     );
@@ -54,24 +62,43 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!sdp) {
-    return NextResponse.json(
-      { error: "Missing WebRTC offer SDP." },
-      { status: 400 },
-    );
-  }
-
-  const apiKey = process.env.OPENAI_API_KEY!;
+  const apiKey = getVoiceAgentApiKey()!;
+  const provider = getVoiceAgentProvider();
+  const greeting = getRecallVoiceAgentGreeting(botName ?? undefined);
+  const displayName = getRecallVoiceAgentDisplayName(botName ?? undefined);
+  const teamLabel = getRecallVoiceAgentTeamLabel();
 
   try {
-    const result = await createRealtimeCall(sdp, apiKey, botName);
-    const greeting = getRecallVoiceAgentGreeting(botName ?? undefined);
-    const displayName = getRecallVoiceAgentDisplayName(botName ?? undefined);
-    const teamLabel = getRecallVoiceAgentTeamLabel();
+    if (provider === "xai") {
+      const xai = await createXaiClientSecret(apiKey, botName);
+      return NextResponse.json({
+        mode: "websocket",
+        provider,
+        clientSecret: xai.clientSecret,
+        wsUrl: xai.wsUrl,
+        model: xai.model,
+        voice: xai.voice,
+        instructions: xai.instructions,
+        greeting,
+        displayName,
+        teamLabel,
+      });
+    }
+
+    if (!sdp) {
+      return NextResponse.json(
+        { error: "Missing WebRTC offer SDP." },
+        { status: 400 },
+      );
+    }
+
+    const apiBase = getVoiceAgentApiBase();
+    const result = await createRealtimeCall(sdp, apiKey, apiBase, botName);
 
     if (result.mode === "calls") {
       return NextResponse.json({
-        mode: "calls",
+        mode: "webrtc",
+        provider,
         sdp: result.answerSdp,
         greeting,
         displayName,
@@ -83,10 +110,12 @@ export async function POST(request: Request) {
       sdp,
       result.clientSecret,
       result.model,
+      result.apiBase,
     );
 
     return NextResponse.json({
-      mode: "legacy",
+      mode: "webrtc",
+      provider,
       sdp: answerSdp,
       greeting,
       displayName,
@@ -94,6 +123,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Realtime connection failed";
+    console.error("[voice-agent/session]", message);
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

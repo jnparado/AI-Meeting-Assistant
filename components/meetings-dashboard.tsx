@@ -94,6 +94,12 @@ export async function MeetingsDashboard() {
             Paste link &amp; join
           </Link>
           <Link
+            href="/dashboard/schedule"
+            className={cn(buttonVariants({ variant: "secondary", size: "lg" }))}
+          >
+            Schedule Meet
+          </Link>
+          <Link
             href="/dashboard/connect"
             className={cn(buttonVariants({ variant: "outline" }))}
           >
@@ -108,11 +114,17 @@ export async function MeetingsDashboard() {
           <CardDescription className="leading-relaxed">
             <ol className="list-decimal space-y-1 pl-4">
               <li>
-                Paste a{" "}
-                <Link href="/join" className="text-primary underline-offset-4 hover:underline">
-                  Google Meet, Zoom, or Teams URL
+                <Link
+                  href="/dashboard/schedule"
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  Schedule a Google Meet
                 </Link>{" "}
-                and choose your bot name.
+                (creates calendar event + email invites) or{" "}
+                <Link href="/join" className="text-primary underline-offset-4 hover:underline">
+                  paste an existing Meet link
+                </Link>
+                .
               </li>
               <li>
                 Click Join — the bot enters as a visible participant

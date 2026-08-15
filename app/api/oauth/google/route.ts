@@ -11,7 +11,14 @@ const GOOGLE_CALENDAR_SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
-export async function GET() {
+function safeReturnPath(value: string | null | undefined): string {
+  if (!value?.startsWith("/") || value.startsWith("//")) {
+    return "/dashboard/connect";
+  }
+  return value;
+}
+
+export async function GET(request: Request) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {
     return NextResponse.json(
@@ -20,12 +27,15 @@ export async function GET() {
     );
   }
 
+  const { searchParams } = new URL(request.url);
+  const returnTo = safeReturnPath(searchParams.get("returnTo") ?? "/dashboard/connect");
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.redirect(`${getAppUrl()}/login`);
+    return NextResponse.redirect(`${getAppUrl()}/login?next=${encodeURIComponent(returnTo)}`);
   }
 
   const organization = await requireActiveOrganization(user.id);
@@ -39,6 +49,13 @@ export async function GET() {
     path: "/",
   });
   cookieStore.set("oauth_organization_id", organization.id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 600,
+    path: "/",
+  });
+  cookieStore.set("oauth_return_to", returnTo, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
