@@ -13,8 +13,13 @@ import { resolveMeetingUrl } from "@/lib/calendar/resolve-meeting-url";
 import { detectMeetingPlatform } from "@/lib/calendar/parse-meeting-url";
 import { prepareMeetingForJoin } from "@/lib/meetings/insert-meeting-fallback";
 import { insertMeetingBotWithFallbacks } from "@/lib/bot/insert-meeting-bot-fallback";
+import { findActiveBotForMeetingUrl } from "@/lib/bot/active-bot-for-url";
+import { getDefaultBotName } from "@/lib/bot/default-bot-name";
+import {
+  isActiveBotStatus,
+  refreshMeetingBotFromRecall,
+} from "@/lib/bot/refresh-recall-bot-status";
 
-const DEFAULT_BOT_NAME = "ServiceFlow AI Notetaker";
 const JOIN_LEAD_MINUTES = 1;
 
 export async function createMeetingBotForUser(
@@ -50,22 +55,48 @@ export async function createMeetingBotForUser(
     throw new Error("Meeting not found");
   }
 
-  if (!input.joinNow) {
-    const { data: existingBots } = await supabase
-      .from("meeting_bots")
-      .select("id, status")
-      .eq("meeting_id", meeting.id);
+  let activeForUrl = await findActiveBotForMeetingUrl(
+    organizationId,
+    userId,
+    joinUrl,
+  );
 
-    const active = (existingBots ?? []).find((b) =>
-      !["completed", "failed", "cancelled"].includes(b.status as string),
-    );
-
-    if (active) {
-      throw new Error("An AI assistant is already scheduled for this meeting");
+  if (activeForUrl?.external_bot_id) {
+    const liveStatus = await refreshMeetingBotFromRecall({
+      id: activeForUrl.id,
+      external_bot_id: activeForUrl.external_bot_id,
+      status: activeForUrl.status,
+    });
+    if (liveStatus && !isActiveBotStatus(liveStatus)) {
+      activeForUrl = null;
+    } else if (liveStatus) {
+      activeForUrl = { ...activeForUrl, status: liveStatus };
     }
   }
 
-  let botName = input.botName?.trim() || DEFAULT_BOT_NAME;
+  if (activeForUrl) {
+    if (input.joinNow) {
+      return {
+        bot: activeForUrl,
+        joinAt:
+          (activeForUrl.scheduled_for as string | null) ??
+          new Date().toISOString(),
+        botName: (activeForUrl.bot_name as string) ?? getDefaultBotName(),
+        resolvedMeetingUrl: joinUrl,
+        alreadyActive: true,
+      };
+    }
+
+    if (activeForUrl.meeting_id === meeting.id) {
+      throw new Error("An AI assistant is already scheduled for this meeting");
+    }
+
+    throw new Error(
+      "An AI assistant is already active for this meeting link. Open it from your meetings dashboard or remove the bot first.",
+    );
+  }
+
+  let botName = input.botName?.trim() || getDefaultBotName();
   if (!input.botName?.trim()) {
     const { data: orgRow } = await supabase
       .from("organizations")
@@ -74,7 +105,7 @@ export async function createMeetingBotForUser(
       .single();
     botName =
       orgRow?.default_bot_name ||
-      (orgRow?.name ? `${orgRow.name} AI Notetaker` : DEFAULT_BOT_NAME);
+      (orgRow?.name ? `${orgRow.name} AI Notetaker` : getDefaultBotName());
   }
 
   const joinAt = input.joinNow
@@ -146,6 +177,7 @@ export async function createMeetingBotForUser(
       joinAt: joinAt.toISOString(),
       botName,
       resolvedMeetingUrl: joinUrl,
+      alreadyActive: false,
     };
   } catch (err) {
     await supabase

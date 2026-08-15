@@ -2,30 +2,39 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { readJsonResponse } from "@/lib/client/read-json-response";
+import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
 
 type Props = {
   meetingId: string;
   meetingUrl: string | null;
   enabled: boolean;
-  botName?: string;
+  initialBotName?: string;
+  voiceAgentEnabled?: boolean;
 };
 
 export function AssistantToggle({
   meetingId,
   meetingUrl: initialUrl,
   enabled,
-  botName = "MeetMind AI Notetaker",
+  initialBotName,
+  voiceAgentEnabled = false,
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [on, setOn] = useState(enabled);
   const [meetingUrl, setMeetingUrl] = useState(initialUrl ?? "");
+  const [botName, setBotName] = useState(
+    initialBotName?.trim() || DEFAULT_BOT_NAME,
+  );
   const [resolvedHint, setResolvedHint] = useState<string | null>(null);
+
+  const displayName = botName.trim() || DEFAULT_BOT_NAME;
 
   async function schedule() {
     const url = meetingUrl.trim();
@@ -41,7 +50,7 @@ export function AssistantToggle({
       body: JSON.stringify({
         meetingId,
         meetingUrl: url,
-        botName,
+        botName: displayName,
       }),
     });
     const data = await readJsonResponse(res);
@@ -95,7 +104,7 @@ export function AssistantToggle({
       body: JSON.stringify({
         meetingUrl: url,
         meetingId,
-        botName,
+        botName: displayName,
       }),
     });
 
@@ -117,8 +126,8 @@ export function AssistantToggle({
     const provider =
       typeof data.provider === "string" ? data.provider : "simulation";
     const params = new URLSearchParams({
-      joined: "1",
-      bot: botName,
+      joined: data.alreadyActive === true ? "existing" : "1",
+      bot: displayName,
       mode: provider,
     });
     window.location.assign(`/dashboard/meetings/${meetingId}?${params}`);
@@ -130,7 +139,25 @@ export function AssistantToggle({
   }
 
   return (
-    <div className="flex w-full max-w-sm flex-col gap-2">
+    <div className="flex w-full max-w-sm flex-col gap-3">
+      <div className="space-y-2">
+        <Label
+          htmlFor={`bot-name-${meetingId}`}
+          className="flex items-center gap-2 text-xs text-muted-foreground"
+        >
+          <Bot className="size-3.5" aria-hidden />
+          Bot name in Google Meet
+        </Label>
+        <Input
+          id={`bot-name-${meetingId}`}
+          value={botName}
+          onChange={(e) => setBotName(e.target.value)}
+          placeholder={DEFAULT_BOT_NAME}
+          className="rounded-xl text-sm"
+          disabled={loading}
+        />
+      </div>
+
       {!on && (
         <div className="space-y-2">
           <Label htmlFor={`meet-url-${meetingId}`} className="text-xs">
@@ -141,19 +168,29 @@ export function AssistantToggle({
             value={meetingUrl}
             onChange={(e) => setMeetingUrl(e.target.value)}
             placeholder="meet.google.com/… or calendar.app.google/…"
-            className="text-sm"
+            className="rounded-xl text-sm"
+            disabled={loading}
           />
-          <p className="text-xs text-muted-foreground">
-            Sends <strong className="font-medium text-foreground">{botName}</strong>{" "}
-            into the call — you do not join as yourself. Admit the bot from the
-            Meet waiting room if you host.
-          </p>
         </div>
       )}
+
+      <p className="text-xs text-muted-foreground">
+        Sends <strong className="font-medium text-foreground">{displayName}</strong>{" "}
+        into the call — admit them from the Meet waiting room if you host.
+        {voiceAgentEnabled ? (
+          <>
+            {" "}
+            <strong className="font-medium text-foreground">{displayName}</strong>{" "}
+            will introduce himself by voice once admitted.
+          </>
+        ) : null}
+      </p>
+
       <Button
         onClick={toggle}
         disabled={loading || (!meetingUrl.trim() && !on)}
         variant={on ? "default" : "outline"}
+        className="rounded-full"
       >
         {loading
           ? "Updating…"
@@ -161,16 +198,23 @@ export function AssistantToggle({
             ? "AI assistant scheduled"
             : "Schedule AI assistant"}
       </Button>
-      {!on && meetingUrl.trim() && (
+
+      {meetingUrl.trim() && (
         <Button
           type="button"
-          variant="default"
-          disabled={loading}
+          variant={on ? "secondary" : "default"}
+          disabled={loading || !displayName}
           onClick={sendBotNow}
+          className="rounded-full"
         >
-          {loading ? "Sending bot…" : "Send AI to join now"}
+          {loading
+            ? "Sending bot…"
+            : on
+              ? `Send ${displayName} to Meet again`
+              : `Send ${displayName} to Meet now`}
         </Button>
       )}
+
       {resolvedHint && (
         <p className="text-xs text-primary">{resolvedHint}</p>
       )}

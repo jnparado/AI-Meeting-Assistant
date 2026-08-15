@@ -41,6 +41,41 @@ const PROGRESS: Record<BotStatus, number> = {
 };
 
 export function getBotTimelineSteps(status: BotStatus): BotTimelineStep[] {
+  if (status === "waiting_room") {
+    return [
+      {
+        id: "scheduled",
+        label: "Bot scheduled",
+        reached: true,
+        current: false,
+      },
+      {
+        id: "waiting_room",
+        label: "Waiting in lobby — admit the bot in Google Meet",
+        reached: true,
+        current: true,
+      },
+      {
+        id: "joined",
+        label: "Bot joined meeting",
+        reached: false,
+        current: false,
+      },
+      {
+        id: "recording",
+        label: "Recording started",
+        reached: false,
+        current: false,
+      },
+      {
+        id: "in_progress",
+        label: "Meeting in progress",
+        reached: false,
+        current: false,
+      },
+    ];
+  }
+
   if (status === "failed" || status === "cancelled") {
     return [
       {

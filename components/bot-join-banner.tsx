@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
 
 type Props = {
   botName?: string | null;
@@ -9,10 +10,12 @@ type Props = {
 
 export function BotJoinBanner({ botName }: Props) {
   const searchParams = useSearchParams();
-  const justJoined = searchParams.get("joined") === "1";
+  const justJoined =
+    searchParams.get("joined") === "1" ||
+    searchParams.get("joined") === "existing";
   const mode = searchParams.get("mode");
   const name =
-    searchParams.get("bot")?.trim() || botName?.trim() || "MeetMind AI Notetaker";
+    searchParams.get("bot")?.trim() || botName?.trim() || DEFAULT_BOT_NAME;
 
   if (!justJoined) return null;
 

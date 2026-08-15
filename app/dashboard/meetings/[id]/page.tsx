@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMeetingForUserSecure } from "@/lib/meetings/load-meeting-for-user";
 import { AssistantToggle } from "@/components/assistant-toggle";
 import { BotJoinBanner } from "@/components/bot-join-banner";
+import { BotWaitingRoomAlert } from "@/components/bot-waiting-room-alert";
 import { BotStatusTimeline } from "@/components/bot-status-timeline";
+import { canUseRecallVoiceAgent } from "@/lib/bot/recall-voice-agent";
 import { MeetingQnaPanel } from "@/components/meeting-qna-panel";
 import { EmailSummaryApproval } from "@/components/email-summary-approval";
 import type { MeetingInsights } from "@/lib/ai/summarize-meeting";
@@ -99,6 +101,14 @@ export default async function MeetingDetailPage({
   const hasTranscript = Boolean(
     transcript?.full_text || segments.length > 0,
   );
+  const liveStatuses = new Set<BotStatus>([
+    "joining",
+    "waiting_room",
+    "joined",
+    "recording",
+  ]);
+  const isLive = bot?.status ? liveStatuses.has(bot.status as BotStatus) : false;
+  const voiceAgentEnabled = canUseRecallVoiceAgent();
 
   return (
     <div className="space-y-6">
@@ -112,6 +122,14 @@ export default async function MeetingDetailPage({
       <Suspense fallback={null}>
         <BotJoinBanner botName={bot?.bot_name as string | undefined} />
       </Suspense>
+
+      {meeting.meeting_url && bot?.status && (
+        <BotWaitingRoomAlert
+          meetingUrl={String(meeting.meeting_url)}
+          botName={bot.bot_name as string | undefined}
+          status={bot.status as BotStatus}
+        />
+      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -136,6 +154,8 @@ export default async function MeetingDetailPage({
           meetingId={String(meeting.id)}
           meetingUrl={(meeting.meeting_url as string | null) ?? null}
           enabled={Boolean(meeting.ai_assistant_enabled)}
+          initialBotName={(bot?.bot_name as string | undefined) ?? undefined}
+          voiceAgentEnabled={voiceAgentEnabled}
         />
       </div>
 
@@ -206,7 +226,12 @@ export default async function MeetingDetailPage({
         </Card>
       )}
 
-      <MeetingQnaPanel meetingId={id} hasTranscript={hasTranscript} />
+      <MeetingQnaPanel
+        meetingId={id}
+        hasTranscript={hasTranscript}
+        isLive={isLive}
+        initialSegments={segments}
+      />
 
       {followUps && followUps.length > 0 && (
         <Card>

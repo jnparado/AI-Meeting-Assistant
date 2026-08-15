@@ -11,6 +11,9 @@ import { hasRecall } from "@/lib/env";
 import { getSupabaseSqlEditorUrl } from "@/lib/supabase/config";
 import {
   getRecallApiBase,
+  getRecallGoogleLoginGroupId,
+  getRecallGoogleLoginSetupHint,
+  isRecallGoogleLoginEnabled,
   getRecallRegion,
   getRecallSetupHint,
   getRecallWebhookUrl,
@@ -81,12 +84,19 @@ export async function POST(request: Request) {
       parsed.data.meetingId,
     );
 
+    const alreadyActive = Boolean(
+      (result as { alreadyActive?: boolean }).alreadyActive,
+    );
+
     return NextResponse.json({
       ok: true,
+      alreadyActive,
       provider: hasRecall() ? "recall" : "simulation",
-      message: hasRecall()
-        ? "AI bot is joining the meeting on Google Meet. Admit “AI Notetaker” from the waiting room if prompted."
-        : "Simulation started (set RECALL_API_KEY for a real Google Meet join).",
+      message: alreadyActive
+        ? "An AI bot is already joining this meeting (check Google Meet → People → Waiting to join). If you do not see Adsense John, wait a few seconds and click Join again."
+        : hasRecall()
+          ? "AI bot is joining Google Meet. Open Meet → People → Waiting to join → Admit Adsense John. If no one appears, click Join again (a fresh bot will be sent)."
+          : "Simulation started (set RECALL_API_KEY for a real Google Meet join).",
       meetingId: result.bot.meeting_id,
       bot: result.bot,
       resolvedMeetingUrl: result.resolvedMeetingUrl,
@@ -211,6 +221,10 @@ export async function GET() {
     recallApiBase: getRecallApiBase(),
     recallWebhookUrl: getRecallWebhookUrl(),
     recallSetup: getRecallSetupHint(),
+    googleLoginGroupConfigured: Boolean(getRecallGoogleLoginGroupId()),
+    googleLoginGroupId: getRecallGoogleLoginGroupId(),
+    googleLoginEnabled: isRecallGoogleLoginEnabled(),
+    googleLoginSetup: getRecallGoogleLoginSetupHint(),
     mode: hasRecall() ? "live" : "simulation",
     databaseFunctions: checks,
     sqlEditorUrl,

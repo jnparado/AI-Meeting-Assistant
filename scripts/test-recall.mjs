@@ -26,7 +26,7 @@ const key = process.env.RECALL_API_KEY?.trim();
 const region =
   process.env.RECALL_REGION?.trim() ||
   process.env.RECALLAI_REGION?.trim() ||
-  "us-west-2";
+  "ap-northeast-1";
 const base =
   process.env.RECALL_API_BASE?.trim()?.replace(/\/$/, "") ||
   `https://${region}.recall.ai`;
@@ -60,7 +60,21 @@ if (res.status === 401 || res.status === 403) {
 
 if (res.ok || res.status === 405 || res.status === 400) {
   console.log("OK — Recall API reachable with your key.");
-  console.log("Send AI bot from /join — admit MeetMind AI Notetaker in Google Meet.");
+
+  const groupId = process.env.RECALL_GOOGLE_LOGIN_GROUP_ID?.trim();
+  if (groupId) {
+    console.log(`Google Login Group configured: ${groupId}`);
+  } else {
+    console.log(
+      "Google Login Group not set — bots join as guests unless login is required.",
+    );
+    console.log("Create one: npm run recall:google-group");
+    console.log(
+      "Then add Workspace SSO login: npm run recall:google-login-add",
+    );
+  }
+
+  console.log("Send AI bot from /join — admit Adsense John in Google Meet.");
   process.exit(0);
 }
 

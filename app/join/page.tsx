@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SimpleAiJoin } from "@/components/simple-ai-join";
 import { MarketingShell } from "@/components/marketing-shell";
 import { HeaderUserArea } from "@/components/header-user-area";
+import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
 
 export default async function JoinPage({
   searchParams,
@@ -25,7 +26,7 @@ export default async function JoinPage({
       <main className="mx-auto flex max-w-lg flex-col items-center px-4 pb-20 pt-6 md:pt-12">
         <SimpleAiJoin initialUrl={params.url ?? ""} />
         <p className="mt-8 max-w-sm text-center text-xs leading-relaxed text-muted-foreground">
-          MeetMind sends <strong className="font-medium text-foreground">MeetMind AI Notetaker</strong>{" "}
+          MeetMind sends <strong className="font-medium text-foreground">{DEFAULT_BOT_NAME}</strong>{" "}
           into the call — you are not joining as yourself. If you host, admit the
           bot from the Google Meet waiting room. Summary and transcript appear on
           your{" "}

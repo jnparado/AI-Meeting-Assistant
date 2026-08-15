@@ -2,6 +2,7 @@ import { createMeetingBotForUser } from "@/lib/bot/create-meeting-bot";
 import { resolveMeetingUrl } from "@/lib/calendar/resolve-meeting-url";
 import { detectMeetingPlatform, meetingTitleForPlatform } from "@/lib/calendar/parse-meeting-url";
 import { createAdhocMeetingRow } from "@/lib/meetings/create-adhoc-meeting";
+import { findMeetingIdByUrl } from "@/lib/meetings/find-meeting-by-url";
 
 export async function joinMeetingNow(
   userId: string,
@@ -21,19 +22,24 @@ export async function joinMeetingNow(
       throw new Error(resolved.error);
     }
 
-    const now = new Date();
-    const externalId = `adhoc:${now.getTime()}:${userId}`;
+    const existingMeetingId = await findMeetingIdByUrl(
+      organizationId,
+      resolved.meetingUrl,
+    );
 
+    const now = new Date();
     const platform = detectMeetingPlatform(resolved.meetingUrl);
     const liveTitle = meetingTitleForPlatform(platform);
 
-    targetMeetingId = await createAdhocMeetingRow({
-      userId,
-      organizationId,
-      meetingUrl: resolved.meetingUrl,
-      externalCalendarId: externalId,
-      title: liveTitle,
-    });
+    targetMeetingId =
+      existingMeetingId ??
+      (await createAdhocMeetingRow({
+        userId,
+        organizationId,
+        meetingUrl: resolved.meetingUrl,
+        externalCalendarId: `adhoc:${now.getTime()}:${userId}`,
+        title: liveTitle,
+      }));
 
     return createMeetingBotForUser(userId, organizationId, {
       meetingId: targetMeetingId,

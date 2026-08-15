@@ -14,6 +14,28 @@ export function detectMeetingPlatform(url: string | null | undefined): MeetingPl
   return "unknown";
 }
 
+/** Canonical URL for deduping the same Meet/Zoom/Teams room. */
+export function normalizeMeetingUrl(url: string): string {
+  const extracted = extractMeetingUrl(url) ?? url.trim();
+  const platform = detectMeetingPlatform(extracted);
+
+  if (platform === "google_meet") {
+    const code = extracted.match(
+      /meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3})/i,
+    )?.[1];
+    if (code) return `https://meet.google.com/${code.toLowerCase()}`;
+  }
+
+  try {
+    const parsed = new URL(extracted);
+    parsed.hash = "";
+    parsed.search = "";
+    return `${parsed.origin}${parsed.pathname}`.replace(/\/$/, "");
+  } catch {
+    return extracted.toLowerCase();
+  }
+}
+
 export function extractMeetingUrl(text: string): string | null {
   const normalized = text
     .replace(/\\u002f/gi, "/")

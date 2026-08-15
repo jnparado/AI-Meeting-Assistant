@@ -114,7 +114,13 @@ export async function MeetingsDashboard() {
                 </Link>{" "}
                 and choose your bot name.
               </li>
-              <li>Click Join — the bot enters as a visible participant (not a voice assistant).</li>
+              <li>
+                Click Join — the bot enters as a visible participant
+                {process.env.RECALL_VOICE_AGENT_ENABLED === "true" ||
+                process.env.RECALL_VOICE_AGENT_ENABLED === "1"
+                  ? " and can speak when voice agent mode is enabled."
+                  : " (enable RECALL_VOICE_AGENT_ENABLED for live conversation)."}
+              </li>
               <li>Admit the bot from the lobby if prompted.</li>
               <li>When the call ends, open the meeting for transcript, summary, and action items.</li>
               <li>

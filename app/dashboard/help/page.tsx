@@ -48,7 +48,7 @@ const steps = [
   },
   {
     title: "Admit the notetaker",
-    body: "When the bot joins, admit MeetMind AI Notetaker from the Google Meet lobby like any guest.",
+    body: "When the bot joins, admit Adsense John from the Google Meet lobby like any guest.",
   },
   {
     title: "Review results",

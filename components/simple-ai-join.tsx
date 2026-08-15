@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { getSupabaseSqlEditorUrl } from "@/lib/supabase/sql-editor-url";
 import { readJsonResponse } from "@/lib/client/read-json-response";
+import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
 
 type Props = {
   initialUrl?: string;
@@ -17,7 +18,7 @@ type Props = {
 
 export function SimpleAiJoin({
   initialUrl = "",
-  initialBotName = "MeetMind AI Notetaker",
+  initialBotName = DEFAULT_BOT_NAME,
   className,
 }: Props) {
   const [meetingUrl, setMeetingUrl] = useState(initialUrl);
@@ -64,10 +65,11 @@ export function SimpleAiJoin({
     const botNameUsed = botName;
     const provider =
       typeof data.provider === "string" ? data.provider : "simulation";
+    const alreadyActive = data.alreadyActive === true;
 
     if (meetingId) {
       const params = new URLSearchParams({
-        joined: "1",
+        joined: alreadyActive ? "existing" : "1",
         bot: botNameUsed,
         mode: provider,
       });
@@ -102,7 +104,7 @@ export function SimpleAiJoin({
           Paste a Meet link. MeetMind sends an AI notetaker into the call —{" "}
           <strong className="font-medium text-foreground">you do not join</strong>{" "}
           as yourself. If you host the meeting, admit{" "}
-          <strong className="font-medium text-foreground">{botName.trim() || "MeetMind AI Notetaker"}</strong>{" "}
+          <strong className="font-medium text-foreground">{botName.trim() || DEFAULT_BOT_NAME}</strong>{" "}
           from the waiting room.
         </p>
       </div>
@@ -132,7 +134,7 @@ export function SimpleAiJoin({
           id="bot-name"
           value={botName}
           onChange={(e) => setBotName(e.target.value)}
-          placeholder="MeetMind AI Notetaker"
+          placeholder={DEFAULT_BOT_NAME}
           className="h-11 rounded-xl border-border/80 bg-background/90"
           required
         />

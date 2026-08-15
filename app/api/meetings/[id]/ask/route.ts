@@ -50,7 +50,23 @@ export async function POST(
   const segments = (transcript?.segments as TranscriptSegment[] | null) ?? [];
   const fullText = transcript?.full_text ?? "";
 
-  if (!fullText && segments.length === 0) {
+  const { data: bot } = await supabase
+    .from("meeting_bots")
+    .select("status")
+    .eq("meeting_id", meetingId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const liveStatuses = new Set([
+    "joining",
+    "waiting_room",
+    "joined",
+    "recording",
+  ]);
+  const isLive = liveStatuses.has(String(bot?.status ?? ""));
+
+  if (!fullText && segments.length === 0 && !isLive) {
     return NextResponse.json(
       { error: "No transcript yet. Wait for the AI assistant to finish." },
       { status: 400 },
@@ -62,6 +78,7 @@ export async function POST(
     fullText,
     segments,
     question,
+    { live: isLive },
   );
 
   return NextResponse.json({ answer });

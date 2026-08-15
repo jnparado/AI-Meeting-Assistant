@@ -1,8 +1,12 @@
 import { getBotSimulationSecret, hasRecall } from "@/lib/env";
 import {
   getRecallApiBase,
+  getRecallGoogleMeetBotConfig,
+  getRecallGoogleLoginSetupHint,
   getRecallSetupHint,
 } from "@/lib/bot/recall-config";
+import { getRecallVoiceAgentExtras, getRecallVoiceAgentSetupHint, isRecallVoiceAgentEnabled, isRecallVoiceAgentUrlConfigured } from "@/lib/bot/recall-voice-agent";
+import { getRecallRealtimeEndpoints } from "@/lib/bot/recall-realtime";
 import type { BotStatus } from "@/lib/types/database";
 
 export type ScheduleBotInput = {
@@ -38,14 +42,36 @@ async function scheduleRecallBot(
   const joinAt =
     input.joinAt.getTime() <= Date.now() ? null : input.joinAt.toISOString();
 
+  if (isRecallVoiceAgentEnabled() && !isRecallVoiceAgentUrlConfigured()) {
+    throw new Error(
+      "RECALL_VOICE_AGENT_ENABLED is on but RECALL_PUBLIC_APP_URL is missing or localhost. " +
+        getRecallVoiceAgentSetupHint(),
+    );
+  }
+
+  const googleMeet = getRecallGoogleMeetBotConfig();
+  const voiceExtras = getRecallVoiceAgentExtras(input.botName);
+  const realtimeEndpoints = getRecallRealtimeEndpoints();
   const body = {
     meeting_url: input.meetingUrl,
     bot_name: input.botName,
     ...(joinAt ? { join_at: joinAt } : {}),
+    ...(googleMeet ? { google_meet: googleMeet } : {}),
+    ...(voiceExtras.output_media
+      ? { output_media: voiceExtras.output_media }
+      : {}),
+    ...(voiceExtras.variant ? { variant: voiceExtras.variant } : {}),
     recording_config: {
       transcript: {
-        provider: { recallai_streaming: {} },
+        provider: {
+          recallai_streaming: {
+            mode: "prioritize_low_latency",
+            language_code: "en",
+          },
+        },
       },
+      ...(voiceExtras.recording_config ?? {}),
+      ...(realtimeEndpoints ? { realtime_endpoints: realtimeEndpoints } : {}),
     },
     automatic_leave: {
       waiting_room_timeout: 600,
@@ -91,6 +117,17 @@ async function scheduleRecallBot(
     throw new Error(
       "Recall has no bots available right now (507). Wait 1–2 minutes and try again, or schedule with join_at 10+ minutes ahead.",
     );
+  }
+
+  if (/does not have any active logins/i.test(lastError)) {
+    throw new Error(
+      "Google Login group has no active logins yet. Bot can join as a guest — remove RECALL_GOOGLE_LOGIN_ENABLED or leave it unset, restart dev server, and try again. " +
+        getRecallGoogleLoginSetupHint(),
+    );
+  }
+
+  if (/google.?login|login.?group|sso/i.test(lastError) && !googleMeet) {
+    throw new Error(`${lastError} ${getRecallGoogleLoginSetupHint()}`);
   }
 
   throw new Error(lastError);

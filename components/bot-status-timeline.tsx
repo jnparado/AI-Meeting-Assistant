@@ -36,6 +36,24 @@ export function BotStatusTimeline({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {status === "waiting_room" && (
+          <div
+            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm"
+            role="alert"
+          >
+            <p className="font-medium text-amber-950 dark:text-amber-100">
+              Bot is in the Google Meet waiting room
+            </p>
+            <p className="mt-1 text-amber-900/90 dark:text-amber-200/90">
+              Open your Meet tab → click{" "}
+              <strong>People</strong> (bottom right) → under{" "}
+              <strong>Waiting to join</strong>, click{" "}
+              <strong>Admit</strong> for{" "}
+              <strong>{botName ?? "the bot"}</strong>. The bot will not appear
+              in the call until you do this.
+            </p>
+          </div>
+        )}
         <ul className="space-y-2 text-sm">
           {steps.map((step) => (
             <li key={step.id} className="flex items-center gap-2">
