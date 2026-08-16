@@ -16,6 +16,7 @@ type Params = {
   voice: string;
   instructions: string;
   greeting: string;
+  outputGain?: number;
   onStatus: (status: Status) => void;
   onDetail: (detail: string) => void;
   isDisposed: () => boolean;
@@ -33,6 +34,7 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     voice,
     instructions,
     greeting,
+    outputGain = 2.5,
     onStatus,
     onDetail,
     isDisposed,
@@ -47,9 +49,12 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
   let sessionReady = false;
   let greetingSent = false;
   let pendingSpeech: string[] = [];
+  let scriptedSpeech: { text: string; introduction?: boolean }[] = [];
+  let speakingScript = false;
   let playbackQueue: Float32Array[] = [];
   let playing = false;
   let currentSource: AudioBufferSourceNode | null = null;
+  let playbackGain: GainNode | null = null;
   let captureRate = XAI_PCM_SAMPLE_RATE;
 
   function playNext() {
@@ -64,7 +69,7 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     buffer.getChannelData(0).set(chunk);
     const node = audioContext.createBufferSource();
     node.buffer = buffer;
-    node.connect(audioContext.destination);
+    node.connect(playbackGain ?? audioContext.destination);
     currentSource = node;
     node.onended = () => {
       if (currentSource === node) currentSource = null;
@@ -93,20 +98,24 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     }
   }
 
-  function speakExact(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    if (!sessionReady) {
-      pendingSpeech.push(trimmed);
+  function flushScriptedSpeech() {
+    if (speakingScript || !ws || ws.readyState !== WebSocket.OPEN || !sessionReady) {
       return;
     }
+
+    const next = scriptedSpeech.shift();
+    if (!next) return;
+
+    speakingScript = true;
+    const delivery = next.introduction
+      ? `Speak clearly at a confident, slightly louder volume. Say exactly: ${JSON.stringify(next.text)}`
+      : `Say exactly the following words and nothing else: ${JSON.stringify(next.text)}`;
     ws.send(
       JSON.stringify({
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
-          instructions: `Say exactly the following words and nothing else: ${JSON.stringify(trimmed)}`,
+          instructions: delivery,
         },
       }),
     );
@@ -114,10 +123,22 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     onDetail("Speaking in the meeting…");
   }
 
+  function speakExact(text: string, options?: { introduction?: boolean }) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!sessionReady) {
+      pendingSpeech.push(trimmed);
+      return;
+    }
+    scriptedSpeech.push({ text: trimmed, introduction: options?.introduction });
+    flushScriptedSpeech();
+  }
+
   function sendGreeting() {
     if (!ws || ws.readyState !== WebSocket.OPEN || greetingSent) return;
     greetingSent = true;
-    speakExact(greeting);
+    speakExact(greeting, { introduction: true });
     onStatus("connected");
     onDetail("Live — introducing himself…");
   }
@@ -159,6 +180,10 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
       if (audioContext.state === "suspended") {
         await audioContext.resume();
       }
+
+      playbackGain = audioContext.createGain();
+      playbackGain.gain.value = outputGain;
+      playbackGain.connect(audioContext.destination);
 
       mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -223,8 +248,10 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
           }
 
           if (msg.type === "response.done") {
+            speakingScript = false;
+            flushScriptedSpeech();
             onStatus("listening");
-            onDetail("Listening — ask John a question.");
+            onDetail("Listening — ask Jerome a question.");
           }
         } catch {
           /* ignore */
@@ -320,6 +347,7 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
   return {
     dispose: () => {
       stopPlayback();
+      playbackGain?.disconnect();
       processor?.disconnect();
       source?.disconnect();
       silentSink?.disconnect();

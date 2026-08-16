@@ -26,6 +26,49 @@ function parseQueue(metadata: Record<string, unknown> | null): SpeechQueueItem[]
     .slice(-50);
 }
 
+export async function enqueueBotSpeechBatch(
+  supabase: Supabase,
+  botId: string,
+  texts: string[],
+): Promise<{ ids: string[]; lines: string[] }> {
+  const lines = texts.map((t) => t.trim()).filter(Boolean);
+  if (lines.length === 0) {
+    throw new Error("Text is required");
+  }
+
+  const { data: bot, error } = await supabase
+    .from("meeting_bots")
+    .select("metadata")
+    .eq("id", botId)
+    .single();
+
+  if (error || !bot) {
+    throw new Error("Bot not found");
+  }
+
+  const metadata = (bot.metadata as Record<string, unknown> | null) ?? {};
+  const queue = parseQueue(metadata);
+  const now = new Date().toISOString();
+  const items: SpeechQueueItem[] = lines.map((line) => ({
+    id: randomUUID(),
+    text: line,
+    createdAt: now,
+    deliveredAt: null,
+  }));
+
+  const nextQueue = [...queue, ...items].slice(-50);
+  const { error: updateError } = await supabase
+    .from("meeting_bots")
+    .update({ metadata: { ...metadata, speech_queue: nextQueue } })
+    .eq("id", botId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  return { ids: items.map((item) => item.id), lines };
+}
+
 export async function enqueueBotSpeech(
   supabase: Supabase,
   botId: string,

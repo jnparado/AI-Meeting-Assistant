@@ -3,13 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveOrganization } from "@/lib/org/server";
 import { loadMeetingForUserSecure } from "@/lib/meetings/load-meeting-for-user";
 import type { BotStatus, TranscriptSegment } from "@/lib/types/database";
-
-const LIVE_STATUSES = new Set<BotStatus>([
-  "joining",
-  "waiting_room",
-  "joined",
-  "recording",
-]);
+import { filterBotTranscriptSegments, isBotSpeaker } from "@/lib/transcripts/filter-bot-speech";
+import {
+  isBotControllable,
+  isBotLive,
+} from "@/lib/bot/bot-control-status";
 
 export async function GET(
   _request: Request,
@@ -42,7 +40,7 @@ export async function GET(
 
   const { data: bot } = await supabase
     .from("meeting_bots")
-    .select("status, metadata")
+    .select("id, status, metadata, bot_name")
     .eq("meeting_id", meetingId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -60,17 +58,71 @@ export async function GET(
     | { speaker?: string; text?: string }
     | undefined;
 
+  const botName = (bot?.bot_name as string | null) ?? null;
+  const rawSegments =
+    (transcript?.segments as TranscriptSegment[] | null) ?? [];
+  const filteredSegments = filterBotTranscriptSegments(rawSegments, botName);
+  const metadataConversation =
+    (metadata.live_conversation as
+      | { speaker?: string; text?: string }[]
+      | undefined) ?? [];
+  const metadataSegments = metadataConversation
+    .map((entry) => ({
+      speaker: entry.speaker?.trim() || "Speaker",
+      text: entry.text?.trim() ?? "",
+    }))
+    .filter((entry) => entry.text && !isBotSpeaker(entry.speaker, botName));
+  const segments =
+    filteredSegments.length > 0 ? filteredSegments : metadataSegments;
+  const partialSpeaker = livePartial?.speaker ?? "Speaker";
+  const partialText = livePartial?.text;
+  const showPartial =
+    partialText &&
+    !isBotSpeaker(partialSpeaker, botName);
+
+  const speechQueue = Array.isArray(metadata.speech_queue)
+    ? metadata.speech_queue
+    : [];
+  const pendingSpeech = speechQueue.filter(
+    (item) =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof (item as { text?: string }).text === "string" &&
+      !(item as { deliveredAt?: string | null }).deliveredAt,
+  );
+  const sentScripts = speechQueue
+    .filter(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as { text?: string }).text === "string",
+    )
+    .slice(-8)
+    .map((item) => ({
+      text: String((item as { text: string }).text),
+      delivered: Boolean((item as { deliveredAt?: string | null }).deliveredAt),
+    }));
+
+  const canControl = isBotControllable(status);
+
   return NextResponse.json({
-    isLive: status ? LIVE_STATUSES.has(status) : false,
+    isLive: isBotLive(status),
+    hasBot: Boolean(bot?.id),
+    hasActiveBot: canControl,
+    canStop: canControl || Boolean(bot?.id),
+    canSpeak: canControl,
     botStatus: status,
-    segments: (transcript?.segments as TranscriptSegment[] | null) ?? [],
+    botName,
+    segments,
     fullText: transcript?.full_text ?? "",
     updatedAt: transcript?.updated_at ?? null,
-    livePartial: livePartial?.text
+    livePartial: showPartial
       ? {
-          speaker: livePartial.speaker ?? "Speaker",
-          text: livePartial.text,
+          speaker: partialSpeaker,
+          text: partialText,
         }
       : null,
+    pendingSpeechCount: pendingSpeech.length,
+    sentScripts,
   });
 }

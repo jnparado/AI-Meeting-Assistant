@@ -21,9 +21,8 @@ export async function cancelMeetingBotForUser(
 
   const { data: activeBots } = await supabase
     .from("meeting_bots")
-    .select("id, external_bot_id")
+    .select("id, external_bot_id, status")
     .eq("meeting_id", meetingId)
-    .eq("user_id", userId)
     .in("status", [
       "scheduled",
       "joining",
@@ -32,13 +31,38 @@ export async function cancelMeetingBotForUser(
       "recording",
     ]);
 
+  const cancelledExternalIds = new Set<string>();
+
   for (const bot of activeBots ?? []) {
-    if (bot.external_bot_id) {
-      try {
-        await cancelRecallBot(bot.external_bot_id);
-      } catch (err) {
-        console.error("cancelRecallBot failed:", err);
-      }
+    const externalId = bot.external_bot_id?.trim();
+    if (!externalId || cancelledExternalIds.has(externalId)) continue;
+    cancelledExternalIds.add(externalId);
+    try {
+      await cancelRecallBot(externalId);
+    } catch (err) {
+      console.error("cancelRecallBot failed:", err);
+    }
+  }
+
+  const { data: latestBot } = await supabase
+    .from("meeting_bots")
+    .select("external_bot_id, status")
+    .eq("meeting_id", meetingId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const latestExternalId = latestBot?.external_bot_id?.trim();
+  if (
+    latestExternalId &&
+    !cancelledExternalIds.has(latestExternalId) &&
+    latestBot?.status &&
+    !["completed", "failed"].includes(String(latestBot.status))
+  ) {
+    try {
+      await cancelRecallBot(latestExternalId);
+    } catch (err) {
+      console.error("cancelRecallBot (latest) failed:", err);
     }
   }
 
@@ -46,7 +70,6 @@ export async function cancelMeetingBotForUser(
     .from("meeting_bots")
     .update({ status: "cancelled", updated_at: new Date().toISOString() })
     .eq("meeting_id", meetingId)
-    .eq("user_id", userId)
     .in("status", [
       "scheduled",
       "joining",

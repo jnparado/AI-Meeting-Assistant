@@ -3,12 +3,14 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
+import { BotLeaveButton } from "@/components/bot-leave-button";
 
 type Props = {
+  meetingId: string;
   botName?: string | null;
 };
 
-export function BotJoinBanner({ botName }: Props) {
+export function BotJoinBanner({ meetingId, botName }: Props) {
   const searchParams = useSearchParams();
   const justJoined =
     searchParams.get("joined") === "1" ||
@@ -26,14 +28,25 @@ export function BotJoinBanner({ botName }: Props) {
       className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-4 text-sm leading-relaxed"
       role="status"
     >
-      <p className="font-medium text-foreground">
-        {isSimulation ? "Simulation started" : "AI bot is joining the meeting"}
-      </p>
-      <p className="mt-1 text-muted-foreground">
-        <strong className="text-foreground">{name}</strong> is the participant in
-        the call — not you. If you host the meeting, open Google Meet and admit{" "}
-        <strong className="text-foreground">{name}</strong> from the waiting room.
-      </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-medium text-foreground">
+            {isSimulation ? "Simulation started" : "AI bot is joining the meeting"}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            <strong className="text-foreground">{name}</strong> is the participant in
+            the call — not you. If you host the meeting, open Google Meet and admit{" "}
+            <strong className="text-foreground">{name}</strong> from the waiting room.
+          </p>
+        </div>
+        <BotLeaveButton
+          meetingId={meetingId}
+          botName={name}
+          label="Leave meeting"
+          size="lg"
+          className="shrink-0"
+        />
+      </div>
       {isSimulation ? (
         <p className="mt-2 text-xs text-amber-800 dark:text-amber-400">
           Demo mode — no real bot on Google Meet yet. Add{" "}

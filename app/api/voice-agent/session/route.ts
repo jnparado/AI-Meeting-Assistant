@@ -3,6 +3,7 @@ import {
   getRecallVoiceAgentDisplayName,
   getRecallVoiceAgentGreeting,
   getRecallVoiceAgentInstructions,
+  getRecallVoiceAgentOutputGain,
   getRecallVoiceAgentTeamLabel,
   getRecallVoiceAgentVoice,
   isRecallVoiceAgentEnabled,
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
         greeting,
         displayName,
         teamLabel,
+        outputGain: getRecallVoiceAgentOutputGain(),
       });
     }
 
@@ -103,6 +105,7 @@ export async function POST(request: Request) {
         greeting,
         displayName,
         teamLabel,
+        outputGain: getRecallVoiceAgentOutputGain(),
       });
     }
 

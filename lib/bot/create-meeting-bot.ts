@@ -19,6 +19,11 @@ import {
   isActiveBotStatus,
   refreshMeetingBotFromRecall,
 } from "@/lib/bot/refresh-recall-bot-status";
+import { assertRecallPublicAppUrlReachable } from "@/lib/bot/verify-recall-public-url";
+import {
+  isRecallVoiceAgentEnabled,
+  refreshRecallVoiceAgentOutputMedia,
+} from "@/lib/bot/recall-voice-agent";
 
 const JOIN_LEAD_MINUTES = 1;
 
@@ -76,6 +81,33 @@ export async function createMeetingBotForUser(
 
   if (activeForUrl) {
     if (input.joinNow) {
+      if (isRecallVoiceAgentEnabled()) {
+        await assertRecallPublicAppUrlReachable();
+        if (activeForUrl.external_bot_id) {
+          const pageUrl = await refreshRecallVoiceAgentOutputMedia(
+            activeForUrl.external_bot_id,
+            (activeForUrl.bot_name as string | null) ?? undefined,
+            activeForUrl.id,
+          );
+          if (pageUrl) {
+            const metadata =
+              ((activeForUrl as { metadata?: Record<string, unknown> }).metadata as
+                | Record<string, unknown>
+                | undefined) ?? {};
+            await supabase
+              .from("meeting_bots")
+              .update({
+                metadata: {
+                  ...metadata,
+                  voice_agent_url: pageUrl,
+                  voice_agent_url_refreshed_at: new Date().toISOString(),
+                },
+              })
+              .eq("id", activeForUrl.id);
+          }
+        }
+      }
+
       return {
         bot: activeForUrl,
         joinAt:
@@ -139,6 +171,10 @@ export async function createMeetingBotForUser(
   const botId = bot.id as string;
 
   try {
+    if (isRecallVoiceAgentEnabled()) {
+      await assertRecallPublicAppUrlReachable();
+    }
+
     const scheduled = await scheduleMeetingBot({
       meetingUrl: joinUrl,
       meetingTitle: meeting.title as string,
@@ -157,6 +193,9 @@ export async function createMeetingBotForUser(
           join_at: joinAt.toISOString(),
           ...(resolved.resolvedFrom
             ? { source_calendar_url: resolved.resolvedFrom }
+            : {}),
+          ...(scheduled.voiceAgentPageUrl
+            ? { voice_agent_url: scheduled.voiceAgentPageUrl }
             : {}),
         },
       })

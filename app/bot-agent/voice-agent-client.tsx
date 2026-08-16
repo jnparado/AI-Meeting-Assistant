@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { BotAgentAvatar } from "@/components/bot-agent-avatar";
 import { runXaiVoiceAgent } from "@/lib/voice-agent/run-xai-voice-agent";
 
 type Props = {
@@ -11,10 +12,7 @@ type Props = {
 
 type AgentStatus = "connecting" | "connected" | "speaking" | "listening" | "error";
 
-const DEFAULT_GREETING =
-  "Hi, my name is John from the AdSense team. Nice to meet you.";
-
-const BOT_AVATAR_LOGO = "/bot-agent/admob-logo.png";
+const DEFAULT_GREETING = "Hi, my name is Jerome from AdMob.";
 
 type SessionPayload = {
   mode?: "websocket" | "webrtc";
@@ -26,25 +24,33 @@ type SessionPayload = {
   greeting?: string;
   displayName?: string;
   teamLabel?: string;
+  outputGain?: number;
   error?: string;
 };
 
-function sendExactSpeech(dc: RTCDataChannel, text: string) {
+function sendExactSpeech(
+  dc: RTCDataChannel,
+  text: string,
+  options?: { introduction?: boolean },
+) {
   const trimmed = text.trim();
   if (!trimmed) return;
+  const delivery = options?.introduction
+    ? `Speak clearly at a confident, slightly louder volume. Say exactly: ${JSON.stringify(trimmed)}`
+    : `Say exactly the following words and nothing else: ${JSON.stringify(trimmed)}`;
   dc.send(
     JSON.stringify({
       type: "response.create",
       response: {
         modalities: ["audio", "text"],
-        instructions: `Say exactly the following words and nothing else: ${JSON.stringify(trimmed)}`,
+        instructions: delivery,
       },
     }),
   );
 }
 
 function sendGreeting(dc: RTCDataChannel, greeting: string) {
-  sendExactSpeech(dc, greeting);
+  sendExactSpeech(dc, greeting, { introduction: true });
 }
 
 function isPeerActive(pc: RTCPeerConnection | null, disposed: boolean): pc is RTCPeerConnection {
@@ -54,8 +60,8 @@ function isPeerActive(pc: RTCPeerConnection | null, disposed: boolean): pc is RT
 export function VoiceAgentClient({ token, botName, botId }: Props) {
   const [status, setStatus] = useState<AgentStatus>("connecting");
   const [detail, setDetail] = useState("Starting voice agent…");
-  const [displayName, setDisplayName] = useState("John");
-  const [teamLabel, setTeamLabel] = useState("AdSense team");
+  const [displayName, setDisplayName] = useState("Jerome");
+  const [teamLabel, setTeamLabel] = useState("AdMob");
   const speakRef = useRef<(text: string) => void>(() => {});
   const agentReadyRef = useRef(false);
 
@@ -104,10 +110,11 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
     let cleanupXai: (() => void) | null = null;
     let pc: RTCPeerConnection | null = null;
     let mediaStream: MediaStream | null = null;
-    let audioEl: HTMLAudioElement | null = null;
     let dataChannel: RTCDataChannel | null = null;
     let greetingSent = false;
     let greetingText = DEFAULT_GREETING;
+    let outputGain = 2.5;
+    let webrtcAudioContext: AudioContext | null = null;
 
     speakRef.current = (text: string) => {
       const trimmed = text.trim();
@@ -138,6 +145,19 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
       greetingText = session.greeting?.trim() || DEFAULT_GREETING;
       if (session.displayName) safe.setDisplayName(session.displayName);
       if (session.teamLabel) safe.setTeamLabel(session.teamLabel);
+      if (typeof session.outputGain === "number" && session.outputGain > 0) {
+        outputGain = session.outputGain;
+      }
+    }
+
+    function boostRemoteAudio(stream: MediaStream) {
+      webrtcAudioContext = new AudioContext();
+      const source = webrtcAudioContext.createMediaStreamSource(stream);
+      const gain = webrtcAudioContext.createGain();
+      gain.gain.value = outputGain;
+      source.connect(gain);
+      gain.connect(webrtcAudioContext.destination);
+      void webrtcAudioContext.resume().catch(() => {});
     }
 
     function maybeSendGreeting() {
@@ -184,17 +204,10 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
       safe.setDetail("Connecting to meeting audio…");
       pc = new RTCPeerConnection();
 
-      audioEl = document.createElement("audio");
-      audioEl.autoplay = true;
-      audioEl.setAttribute("playsinline", "true");
-      audioEl.volume = 1;
-      document.body.appendChild(audioEl);
-
       pc.ontrack = (event) => {
         const [stream] = event.streams;
-        if (stream && audioEl) {
-          audioEl.srcObject = stream;
-          void audioEl.play().catch(() => {});
+        if (stream) {
+          boostRemoteAudio(stream);
         }
       };
 
@@ -218,7 +231,7 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
           }
           if (msg.type === "response.done") {
             safe.setStatus("listening");
-            safe.setDetail("Listening — ask John a question.");
+            safe.setDetail("Listening — ask Jerome a question.");
           }
         } catch {
           /* ignore */
@@ -267,9 +280,10 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
           const controls = runXaiVoiceAgent({
             wsUrl: probe.wsUrl,
             clientSecret: probe.clientSecret,
-            voice: probe.voice ?? "eve",
+            voice: probe.voice ?? "leo",
             instructions: probe.instructions ?? "",
             greeting: greetingText,
+            outputGain: probe.outputGain ?? outputGain,
             onStatus: safe.setStatus,
             onDetail: safe.setDetail,
             isDisposed: () => disposed,
@@ -300,51 +314,26 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
       dataChannel?.close();
       pc?.close();
       mediaStream?.getTracks().forEach((t) => t.stop());
-      audioEl?.remove();
+      void webrtcAudioContext?.close();
     };
   }, [token, botName]);
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-6 bg-[#0f1115] text-white">
-      <div className="text-center">
-        <p className="text-2xl font-semibold tracking-tight">{displayName}</p>
-        <p className="mt-1 text-sm text-white/60">{teamLabel}</p>
-      </div>
+    <div className="relative h-full w-full overflow-hidden bg-black text-white">
+      <BotAgentAvatar
+        alt={`${displayName} avatar`}
+        variant="full"
+        speaking={status === "speaking"}
+        error={status === "error"}
+      />
 
-      <div
-        className={`relative flex h-32 w-32 items-center justify-center rounded-full border-2 p-1 ${
-          status === "speaking"
-            ? "border-sky-400/80 bg-sky-500/10 animate-pulse"
-            : status === "listening" || status === "connected"
-              ? "border-emerald-400/80 bg-emerald-500/10"
-              : status === "error"
-                ? "border-red-400/80 bg-red-500/10"
-                : "border-white/30 bg-white/5"
-        }`}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={BOT_AVATAR_LOGO}
-          alt={`${displayName} avatar`}
-          className="h-full w-full rounded-full object-contain bg-white p-2"
-        />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 pb-6 pt-16 text-center">
+        <p className="text-lg font-semibold tracking-tight">{displayName}</p>
+        <p className="mt-0.5 text-sm text-white/60">{teamLabel}</p>
         {status === "error" && (
-          <span
-            className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-red-500 text-sm font-bold text-white"
-            aria-hidden
-          >
-            !
-          </span>
+          <p className="mx-auto mt-3 max-w-md text-sm text-red-300">{detail}</p>
         )}
       </div>
-
-      <p
-        className={`max-w-md px-6 text-center text-sm ${
-          status === "error" ? "text-red-300" : "text-white/70"
-        }`}
-      >
-        {detail}
-      </p>
     </div>
   );
 }

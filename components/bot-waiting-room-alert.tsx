@@ -1,14 +1,21 @@
 import { ExternalLink } from "lucide-react";
+import { BotLeaveButton } from "@/components/bot-leave-button";
 import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
 import type { BotStatus } from "@/lib/types/database";
 
 type Props = {
+  meetingId: string;
   meetingUrl: string;
   botName?: string | null;
   status: BotStatus;
 };
 
-export function BotWaitingRoomAlert({ meetingUrl, botName, status }: Props) {
+export function BotWaitingRoomAlert({
+  meetingId,
+  meetingUrl,
+  botName,
+  status,
+}: Props) {
   if (status !== "waiting_room" && status !== "joining") return null;
 
   const name = botName?.trim() || DEFAULT_BOT_NAME;
@@ -36,15 +43,23 @@ export function BotWaitingRoomAlert({ meetingUrl, botName, status }: Props) {
           <>The bot should reach the waiting room within ~30 seconds.</>
         )}
       </p>
-      <a
-        href={meetingUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-4 inline-flex h-8 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-      >
-        Open Google Meet & admit {name}
-        <ExternalLink className="size-4" aria-hidden />
-      </a>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <a
+          href={meetingUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Open Google Meet & admit {name}
+          <ExternalLink className="size-4" aria-hidden />
+        </a>
+        <BotLeaveButton
+          meetingId={meetingId}
+          botName={name}
+          label="Leave meeting"
+          size="default"
+        />
+      </div>
     </div>
   );
 }

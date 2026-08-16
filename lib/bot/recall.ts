@@ -21,6 +21,7 @@ export type ScheduleBotInput = {
 export type ScheduleBotResult = {
   externalBotId: string;
   provider: "recall" | "simulation";
+  voiceAgentPageUrl?: string | null;
 };
 
 const RECALL_RETRY_STATUSES = new Set([507, 502, 503, 429]);
@@ -51,6 +52,7 @@ async function scheduleRecallBot(
 
   const googleMeet = getRecallGoogleMeetBotConfig();
   const voiceExtras = getRecallVoiceAgentExtras(input.botName, input.botId);
+  const voicePageUrl = voiceExtras.output_media?.camera?.config?.url ?? null;
   const realtimeEndpoints = getRecallRealtimeEndpoints();
   const body = {
     meeting_url: input.meetingUrl,
@@ -94,7 +96,11 @@ async function scheduleRecallBot(
 
     if (res.ok) {
       const json = (await res.json()) as { id: string };
-      return { externalBotId: json.id, provider: "recall" };
+      return {
+        externalBotId: json.id,
+        provider: "recall",
+        voiceAgentPageUrl: voicePageUrl,
+      };
     }
 
     const text = await res.text();
@@ -178,6 +184,35 @@ export async function cancelRecallBot(externalBotId: string): Promise<void> {
   if (!res.ok && res.status !== 404) {
     const text = await res.text();
     throw new Error(`Recall cancel failed: ${text}`);
+  }
+}
+
+export async function updateRecallBotOutputMedia(
+  externalBotId: string,
+  pageUrl: string,
+): Promise<void> {
+  if (!hasRecall() || externalBotId.startsWith("sim_")) return;
+
+  const res = await fetch(
+    `${getRecallApiBase()}/api/v1/bot/${externalBotId}/output_media/`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${process.env.RECALL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        camera: {
+          kind: "webpage",
+          config: { url: pageUrl },
+        },
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Recall output media update failed: ${text.slice(0, 400)}`);
   }
 }
 

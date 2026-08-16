@@ -5,11 +5,8 @@ import { getActiveOrganization } from "@/lib/org/server";
 import { ensureUserWorkspaceFromSession } from "@/lib/org/ensure-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { loadMeetingForUserSecure } from "@/lib/meetings/load-meeting-for-user";
-import { AssistantToggle } from "@/components/assistant-toggle";
-import { BotJoinBanner } from "@/components/bot-join-banner";
-import { BotWaitingRoomAlert } from "@/components/bot-waiting-room-alert";
-import { BotStatusTimeline } from "@/components/bot-status-timeline";
 import { canUseRecallVoiceAgent } from "@/lib/bot/recall-voice-agent";
+import { BotMonitorPanel } from "@/components/bot-monitor-panel";
 import { MeetingQnaPanel } from "@/components/meeting-qna-panel";
 import { EmailSummaryApproval } from "@/components/email-summary-approval";
 import type { MeetingInsights } from "@/lib/ai/summarize-meeting";
@@ -119,54 +116,38 @@ export default async function MeetingDetailPage({
         ← Back to meetings
       </Link>
 
-      <Suspense fallback={null}>
-        <BotJoinBanner botName={bot?.bot_name as string | undefined} />
-      </Suspense>
-
-      {meeting.meeting_url && bot?.status && (
-        <BotWaitingRoomAlert
-          meetingUrl={String(meeting.meeting_url)}
-          botName={bot.bot_name as string | undefined}
-          status={bot.status as BotStatus}
-        />
-      )}
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {platformLabel[String(meeting.platform ?? "unknown")] ?? "Meeting"}
-          </p>
-          <h1 className="text-2xl font-semibold">{String(meeting.title ?? "Meeting")}</h1>
-          <p className="text-muted-foreground">{when}</p>
-          {meeting.meeting_url && (
-            <a
-              id="open-meet-link"
-              href={meeting.meeting_url as string}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-block text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Open conference link (optional — for you, not the bot)
-            </a>
-          )}
-        </div>
-        <AssistantToggle
-          meetingId={String(meeting.id)}
-          meetingUrl={(meeting.meeting_url as string | null) ?? null}
-          enabled={Boolean(meeting.ai_assistant_enabled)}
-          initialBotName={(bot?.bot_name as string | undefined) ?? undefined}
-          voiceAgentEnabled={voiceAgentEnabled}
-        />
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {platformLabel[String(meeting.platform ?? "unknown")] ?? "Meeting"}
+        </p>
+        <h1 className="text-2xl font-semibold">{String(meeting.title ?? "Meeting")}</h1>
+        <p className="text-muted-foreground">{when}</p>
+        {meeting.meeting_url && (
+          <a
+            id="open-meet-link"
+            href={meeting.meeting_url as string}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-block text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Open conference link (optional — for you, not the bot)
+          </a>
+        )}
       </div>
 
-      {bot && (
-        <BotStatusTimeline
-          status={bot.status as BotStatus}
-          botName={bot.bot_name}
-          scheduledFor={bot.scheduled_for}
-          failureReason={bot.failure_reason}
+      <Suspense fallback={null}>
+        <BotMonitorPanel
+          meetingId={id}
+          meetingUrl={(meeting.meeting_url as string | null) ?? null}
+          initialBotName={(bot?.bot_name as string | null) ?? null}
+          initialBotStatus={(bot?.status as BotStatus | undefined) ?? null}
+          initialIsLive={isLive}
+          hasBot={Boolean(bot)}
+          aiAssistantEnabled={Boolean(meeting.ai_assistant_enabled)}
+          voiceAgentEnabled={voiceAgentEnabled}
+          initialSegments={segments}
         />
-      )}
+      </Suspense>
 
       {summary && emailInsights && integrations?.follow_up_email !== false ? (
         <EmailSummaryApproval
@@ -230,7 +211,9 @@ export default async function MeetingDetailPage({
         meetingId={id}
         hasTranscript={hasTranscript}
         isLive={isLive}
+        hasBot={Boolean(bot)}
         initialSegments={segments}
+        hideBotControls={Boolean(bot)}
       />
 
       {followUps && followUps.length > 0 && (

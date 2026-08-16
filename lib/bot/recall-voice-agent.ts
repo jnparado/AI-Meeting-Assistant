@@ -1,4 +1,5 @@
 import { getRecallPublicAppUrl } from "@/lib/bot/recall-config";
+import { updateRecallBotOutputMedia } from "@/lib/bot/recall";
 import { getVoiceAgentProvider, hasVoiceAgentLlm } from "@/lib/env";
 import { getDefaultBotName } from "@/lib/bot/default-bot-name";
 import { createVoiceAgentToken } from "@/lib/voice-agent/token";
@@ -15,15 +16,16 @@ export function getRecallRealtimeModel(): string {
     : DEFAULT_OPENAI_REALTIME_MODEL;
 }
 
-const DEFAULT_AGENT_NAME = "John";
-const DEFAULT_AGENT_TEAM = "AdSense team";
+const DEFAULT_AGENT_NAME = "Jerome";
+const DEFAULT_AGENT_TEAM = "AdMob";
 
-const DEFAULT_GREETING =
-  "Hi, my name is John from the AdSense team. Nice to meet you.";
+const DEFAULT_GREETING = "Hi, my name is Jerome from AdMob.";
 
-const DEFAULT_INSTRUCTIONS = `You are John from the AdSense team, joining a live video meeting as a friendly assistant.
+const DEFAULT_INSTRUCTIONS = `You are Jerome from AdMob, joining a live video meeting as a friendly assistant.
 Keep replies short (1–3 sentences). Listen to participants, answer questions clearly,
-and help summarize or clarify when asked. Be natural and conversational. You may say your name is John from the AdSense team when helpful.`;
+and help summarize or clarify when asked. Be natural and conversational. You may say your name is Jerome from AdMob when helpful.`;
+
+const DEFAULT_OUTPUT_GAIN = 2.5;
 
 export function isRecallVoiceAgentEnabled(): boolean {
   const v = process.env.RECALL_VOICE_AGENT_ENABLED?.trim().toLowerCase();
@@ -56,6 +58,9 @@ export function getRecallVoiceAgentGreeting(botName?: string): string {
   if (/adsense\s+john/i.test(meetName) || meetName.toLowerCase() === "john") {
     return DEFAULT_GREETING;
   }
+  if (/jerome/i.test(meetName)) {
+    return DEFAULT_GREETING;
+  }
 
   return `Hi, my name is ${meetName}. Nice to meet you.`;
 }
@@ -73,7 +78,16 @@ export function getRecallVoiceAgentDisplayName(botName?: string): string {
   }
   const meetName = botName?.trim() || getDefaultBotName();
   if (/adsense\s+john/i.test(meetName)) return "John";
+  if (/jerome/i.test(meetName)) return "Jerome";
   return meetName.split(/\s+/)[0] || DEFAULT_AGENT_NAME;
+}
+
+export function getRecallVoiceAgentOutputGain(): number {
+  const raw = process.env.RECALL_VOICE_AGENT_OUTPUT_GAIN?.trim();
+  if (!raw) return DEFAULT_OUTPUT_GAIN;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return DEFAULT_OUTPUT_GAIN;
+  return Math.min(value, 4);
 }
 
 export function getRecallVoiceAgentTeamLabel(): string {
@@ -83,7 +97,7 @@ export function getRecallVoiceAgentTeamLabel(): string {
 export function getRecallVoiceAgentVoice(): string {
   const custom = process.env.RECALL_VOICE_AGENT_VOICE?.trim();
   if (custom) return custom;
-  return getVoiceAgentProvider() === "xai" ? "eve" : "verse";
+  return getVoiceAgentProvider() === "xai" ? "leo" : "verse";
 }
 
 export function getRecallVoiceAgentPageUrl(
@@ -147,7 +161,19 @@ export function getRecallVoiceAgentExtras(
 export function getRecallVoiceAgentSetupHint(): string {
   return (
     "Voice agent needs RECALL_PUBLIC_APP_URL=https://your-cloudflare-or-vercel-url " +
-    "(Recall cannot load localhost). Run: npm run recall:tunnel (Cloudflare, no browser gate) — then restart dev server and send a new bot. " +
+    "(Recall cannot load localhost). Run: npm run recall:tunnel (Cloudflare, no browser gate) — keep that terminal open, restart dev server, then send a new bot. " +
     "Docs: https://docs.recall.ai/docs/stream-media"
   );
+}
+
+/** Point an in-call Recall bot at the current voice-agent page (fixes stale tunnel URLs). */
+export async function refreshRecallVoiceAgentOutputMedia(
+  externalBotId: string,
+  botName?: string,
+  botId?: string,
+): Promise<string | null> {
+  const pageUrl = getRecallVoiceAgentPageUrl(botName, botId);
+  if (!pageUrl) return null;
+  await updateRecallBotOutputMedia(externalBotId, pageUrl);
+  return pageUrl;
 }

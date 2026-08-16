@@ -1,14 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot } from "lucide-react";
+import { Bot, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { readJsonResponse } from "@/lib/client/read-json-response";
 import { formatFetchError } from "@/lib/client/format-fetch-error";
+import { stopMeetingBot } from "@/lib/bot/stop-meeting-bot-client";
 import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
+import type { BotStatus } from "@/lib/types/database";
+
+const IN_MEETING_STATUSES = new Set<BotStatus>([
+  "joining",
+  "waiting_room",
+  "joined",
+  "recording",
+]);
+
+const LEAVABLE_STATUSES = new Set<BotStatus>([
+  "scheduled",
+  "joining",
+  "waiting_room",
+  "joined",
+  "recording",
+]);
 
 type Props = {
   meetingId: string;
@@ -16,6 +33,10 @@ type Props = {
   enabled: boolean;
   initialBotName?: string;
   voiceAgentEnabled?: boolean;
+  botStatus?: BotStatus | null;
+  hasScheduledBot?: boolean;
+  compact?: boolean;
+  hideLeave?: boolean;
 };
 
 export function AssistantToggle({
@@ -24,11 +45,18 @@ export function AssistantToggle({
   enabled,
   initialBotName,
   voiceAgentEnabled = false,
+  botStatus = null,
+  hasScheduledBot = false,
+  compact = false,
+  hideLeave = false,
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [on, setOn] = useState(enabled);
+  const [liveBotStatus, setLiveBotStatus] = useState<BotStatus | null>(
+    botStatus,
+  );
   const [meetingUrl, setMeetingUrl] = useState(initialUrl ?? "");
   const [botName, setBotName] = useState(
     initialBotName?.trim() || DEFAULT_BOT_NAME,
@@ -36,6 +64,52 @@ export function AssistantToggle({
   const [resolvedHint, setResolvedHint] = useState<string | null>(null);
 
   const displayName = botName.trim() || DEFAULT_BOT_NAME;
+
+  useEffect(() => {
+    setOn(enabled);
+  }, [enabled]);
+
+  useEffect(() => {
+    setLiveBotStatus(botStatus);
+  }, [botStatus]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const res = await fetch(`/api/meetings/${meetingId}/live`);
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          botStatus?: BotStatus | null;
+          hasBot?: boolean;
+        };
+        if (cancelled) return;
+        if (data.botStatus) setLiveBotStatus(data.botStatus);
+        if (data.hasBot) setOn(true);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    void poll();
+    const id = window.setInterval(() => void poll(), 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [meetingId]);
+
+  async function leaveMeeting() {
+    const inCall = liveBotStatus
+      ? IN_MEETING_STATUSES.has(liveBotStatus)
+      : on;
+    const message = inCall
+      ? `Stop ${displayName} and remove them from the meeting now?`
+      : `Cancel the scheduled assistant for this meeting?`;
+    if (!window.confirm(message)) return;
+    await cancel();
+  }
 
   async function schedule() {
     const url = meetingUrl.trim();
@@ -81,15 +155,9 @@ export function AssistantToggle({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/meeting-bots", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ meetingId }),
-      });
-      const data = await readJsonResponse(res);
-      if (!res.ok) {
-        setError(String(data.error ?? "Could not cancel assistant"));
+      const result = await stopMeetingBot(meetingId);
+      if (!result.ok) {
+        setError(result.error ?? "Could not stop the bot");
         return;
       }
       setOn(false);
@@ -149,76 +217,106 @@ export function AssistantToggle({
     }
   }
 
-  async function toggle() {
-    if (on) await cancel();
-    else await schedule();
-  }
+  const canLeave =
+    hasScheduledBot ||
+    on ||
+    (liveBotStatus ? LEAVABLE_STATUSES.has(liveBotStatus) : false);
 
   return (
-    <div className="flex w-full max-w-sm flex-col gap-3">
-      <div className="space-y-2">
-        <Label
-          htmlFor={`bot-name-${meetingId}`}
-          className="flex items-center gap-2 text-xs text-muted-foreground"
-        >
-          <Bot className="size-3.5" aria-hidden />
-          Bot name in Google Meet
-        </Label>
-        <Input
-          id={`bot-name-${meetingId}`}
-          value={botName}
-          onChange={(e) => setBotName(e.target.value)}
-          placeholder={DEFAULT_BOT_NAME}
-          className="rounded-xl text-sm"
+    <div
+      className={
+        compact
+          ? "flex w-full flex-col gap-3"
+          : "flex w-full max-w-sm flex-col gap-3"
+      }
+    >
+      {canLeave && !hideLeave && (
+        <Button
+          type="button"
+          variant="destructive"
           disabled={loading}
-        />
-      </div>
+          onClick={() => void leaveMeeting()}
+          className="rounded-full gap-2"
+        >
+          {loading ? (
+            "Leaving…"
+          ) : (
+            <>
+              <Square className="size-3.5 fill-current" aria-hidden />
+              Leave meeting
+            </>
+          )}
+        </Button>
+      )}
 
-      {!on && (
+      <div className={compact ? "grid gap-3 sm:grid-cols-2" : "space-y-2"}>
         <div className="space-y-2">
-          <Label htmlFor={`meet-url-${meetingId}`} className="text-xs">
-            Meeting link
+          <Label
+            htmlFor={`bot-name-${meetingId}`}
+            className="flex items-center gap-2 text-xs text-muted-foreground"
+          >
+            <Bot className="size-3.5" aria-hidden />
+            Bot name in Google Meet
           </Label>
           <Input
-            id={`meet-url-${meetingId}`}
-            value={meetingUrl}
-            onChange={(e) => setMeetingUrl(e.target.value)}
-            placeholder="meet.google.com/… or calendar.app.google/…"
+            id={`bot-name-${meetingId}`}
+            value={botName}
+            onChange={(e) => setBotName(e.target.value)}
+            placeholder={DEFAULT_BOT_NAME}
             className="rounded-xl text-sm"
             disabled={loading}
           />
         </div>
+
+        {(!on || compact) && (
+          <div className="space-y-2">
+            <Label htmlFor={`meet-url-${meetingId}`} className="text-xs">
+              Meeting link
+            </Label>
+            <Input
+              id={`meet-url-${meetingId}`}
+              value={meetingUrl}
+              onChange={(e) => setMeetingUrl(e.target.value)}
+              placeholder="meet.google.com/…"
+              className="rounded-xl text-sm"
+              disabled={loading}
+            />
+          </div>
+        )}
+      </div>
+
+      {!compact && (
+        <p className="text-xs text-muted-foreground">
+          Sends <strong className="font-medium text-foreground">{displayName}</strong>{" "}
+          into the call — admit them from the Meet waiting room if you host.
+          {voiceAgentEnabled ? (
+            <>
+              {" "}
+              They will speak by voice once admitted.
+            </>
+          ) : null}
+        </p>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Sends <strong className="font-medium text-foreground">{displayName}</strong>{" "}
-        into the call — admit them from the Meet waiting room if you host.
-        {voiceAgentEnabled ? (
-          <>
-            {" "}
-            <strong className="font-medium text-foreground">{displayName}</strong>{" "}
-            will introduce himself by voice once admitted.
-          </>
-        ) : null}
-      </p>
-
-      <Button
-        onClick={toggle}
-        disabled={loading || (!meetingUrl.trim() && !on)}
-        variant={on ? "default" : "outline"}
-        className="rounded-full"
-      >
-        {loading
-          ? "Updating…"
-          : on
-            ? "AI assistant scheduled"
-            : "Schedule AI assistant"}
-      </Button>
+      {!compact && (
+        <Button
+          onClick={() => void schedule()}
+          disabled={loading || on || !meetingUrl.trim()}
+          variant={on ? "default" : "outline"}
+          className="rounded-full"
+        >
+          {loading && !on
+            ? "Updating…"
+            : on
+              ? "AI assistant scheduled"
+              : "Schedule AI assistant"}
+        </Button>
+      )}
 
       {meetingUrl.trim() && (
         <Button
           type="button"
-          variant={on ? "secondary" : "default"}
+          variant={compact ? "default" : on ? "secondary" : "default"}
           disabled={loading || !displayName}
           onClick={sendBotNow}
           className="rounded-full"
