@@ -107,19 +107,65 @@ if (keepOne && sorted[0]) {
 for (const bot of toRemove) {
   const id = bot.id;
   const name = bot.bot_name ?? "(no name)";
-  const status = bot.status_changes?.at(-1)?.code ?? "unknown";
+  const statusChanges = bot.status_changes ?? [];
+  const status = statusChanges.at(-1)?.code ?? "unknown";
+
+  if (["done", "completed", "failed", "fatal"].includes(String(status))) {
+    console.log(`Skipped ${id} (${name}, ${status}) — already finished`);
+    continue;
+  }
+
+  const inCall = [
+    "joining_call",
+    "in_waiting_room",
+    "in_call",
+    "in_call_recording",
+    "call_ended",
+  ].includes(String(status));
+
+  if (inCall) {
+    const leaveRes = await fetch(`${base}/api/v1/bot/${id}/leave_call/`, {
+      method: "POST",
+      headers: { Authorization: `Token ${key}` },
+    });
+    if (leaveRes.ok || leaveRes.status === 404) {
+      console.log(`Left call ${id} (${name}, ${status})`);
+      continue;
+    }
+    console.error(
+      `Failed to leave call ${id} (${leaveRes.status}):`,
+      (await leaveRes.text()).slice(0, 200),
+    );
+    continue;
+  }
+
   const delRes = await fetch(`${base}/api/v1/bot/${id}/`, {
     method: "DELETE",
     headers: { Authorization: `Token ${key}` },
   });
   if (delRes.ok || delRes.status === 404) {
-    console.log(`Removed ${id} (${name}, ${status})`);
-  } else {
-    console.error(
-      `Failed to remove ${id} (${delRes.status}):`,
-      (await delRes.text()).slice(0, 200),
-    );
+    console.log(`Deleted scheduled bot ${id} (${name}, ${status})`);
+    continue;
   }
+  if (delRes.status === 405) {
+    const leaveRes = await fetch(`${base}/api/v1/bot/${id}/leave_call/`, {
+      method: "POST",
+      headers: { Authorization: `Token ${key}` },
+    });
+    if (leaveRes.ok || leaveRes.status === 404) {
+      console.log(`Left call ${id} (${name}, ${status})`);
+      continue;
+    }
+    console.error(
+      `Failed to leave call ${id} (${leaveRes.status}):`,
+      (await leaveRes.text()).slice(0, 200),
+    );
+    continue;
+  }
+  console.error(
+    `Failed to remove ${id} (${delRes.status}):`,
+    (await delRes.text()).slice(0, 200),
+  );
 }
 
 console.log(

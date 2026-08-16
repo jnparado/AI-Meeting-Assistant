@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getActiveOrganization } from "@/lib/org/server";
 import { loadMeetingForUserSecure } from "@/lib/meetings/load-meeting-for-user";
 import { getRecallVoiceAgentGreeting } from "@/lib/bot/recall-voice-agent";
+import { resolveActiveMeetingBot } from "@/lib/bot/resolve-active-meeting-bot";
 import { expandIntroSpeakLines } from "@/lib/transcripts/filter-bot-speech";
 import { enqueueBotSpeechBatch } from "@/lib/voice-agent/speech-queue";
+import { isBotControllable } from "@/lib/bot/bot-control-status";
 import type { BotStatus } from "@/lib/types/database";
-
-const BLOCKED_STATUSES = new Set<BotStatus>([
-  "failed",
-  "cancelled",
-  "completed",
-  "meeting_ended",
-]);
 
 export async function POST(
   request: Request,
@@ -50,25 +45,33 @@ export async function POST(
     return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
   }
 
-  const { data: bot } = await supabase
-    .from("meeting_bots")
-    .select("id, status, bot_name")
-    .eq("meeting_id", meetingId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const resolved = await resolveActiveMeetingBot({
+    supabase,
+    meetingId,
+    organizationId: organization.id,
+    userId: user.id,
+    meetingUrl: (meeting.meeting_url as string | null) ?? null,
+  });
+
+  const bot = resolved ?? null;
 
   if (!bot?.id) {
     return NextResponse.json(
-      { error: "No AI assistant scheduled for this meeting." },
+      {
+        error:
+          "No active bot for this meeting. Click Send to Meet now below, admit the bot, then try Speak now.",
+      },
       { status: 400 },
     );
   }
 
   const status = String(bot.status ?? "") as BotStatus;
-  if (BLOCKED_STATUSES.has(status)) {
+  if (!isBotControllable(status)) {
     return NextResponse.json(
-      { error: "This AI assistant is no longer active for this meeting." },
+      {
+        error:
+          "This bot is no longer active. Send to Meet again, then click Speak now.",
+      },
       { status: 400 },
     );
   }
@@ -77,8 +80,9 @@ export async function POST(
     const botName = (bot.bot_name as string | null) ?? undefined;
     const greeting = getRecallVoiceAgentGreeting(botName);
     const lines = expandIntroSpeakLines(text, greeting);
+    const service = createServiceClient();
     const { ids, lines: queued } = await enqueueBotSpeechBatch(
-      supabase,
+      service,
       bot.id,
       lines,
     );

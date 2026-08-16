@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BotAgentAvatar } from "@/components/bot-agent-avatar";
+import { buildHumanSpeechDelivery } from "@/lib/voice-agent/human-speech-delivery";
 import { runXaiVoiceAgent } from "@/lib/voice-agent/run-xai-voice-agent";
 
 type Props = {
@@ -35,9 +36,9 @@ function sendExactSpeech(
 ) {
   const trimmed = text.trim();
   if (!trimmed) return;
-  const delivery = options?.introduction
-    ? `Speak clearly at a confident, slightly louder volume. Say exactly: ${JSON.stringify(trimmed)}`
-    : `Say exactly the following words and nothing else: ${JSON.stringify(trimmed)}`;
+  const delivery = buildHumanSpeechDelivery(trimmed, {
+    introduction: options?.introduction,
+  });
   dc.send(
     JSON.stringify({
       type: "response.create",
@@ -62,7 +63,7 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
   const [detail, setDetail] = useState("Starting voice agent…");
   const [displayName, setDisplayName] = useState("Jerome");
   const [teamLabel, setTeamLabel] = useState("AdMob");
-  const speakRef = useRef<(text: string) => void>(() => {});
+  const speakRef = useRef<(text: string) => boolean>(() => false);
   const agentReadyRef = useRef(false);
 
   useEffect(() => {
@@ -86,12 +87,24 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
         });
         const res = await fetch(`/api/voice-agent/speech-queue?${params}`);
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { items?: { text?: string }[] };
+        const data = (await res.json()) as {
+          items?: { id?: string; text?: string }[];
+        };
+        const deliveredIds: string[] = [];
         for (const item of data.items ?? []) {
-          if (item.text?.trim()) {
-            speakRef.current(item.text);
+          if (!item.id || !item.text?.trim()) continue;
+          if (speakRef.current(item.text)) {
+            deliveredIds.push(item.id);
+          } else {
+            break;
           }
         }
+        if (deliveredIds.length === 0 || cancelled) return;
+        await fetch(`/api/voice-agent/speech-queue?${params}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deliveredIds }),
+        });
       } catch {
         /* ignore transient poll errors */
       }
@@ -118,12 +131,14 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
 
     speakRef.current = (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed) return false;
       if (dataChannel?.readyState === "open") {
         sendExactSpeech(dataChannel, trimmed);
         safe.setStatus("speaking");
         safe.setDetail("Speaking in the meeting…");
+        return true;
       }
+      return false;
     };
 
     const safe = {

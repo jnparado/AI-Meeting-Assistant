@@ -4,6 +4,7 @@ import {
   float32ToPcm16Base64,
   resampleFloat32,
 } from "@/lib/voice-agent/audio-pcm";
+import { buildHumanSpeechDelivery } from "@/lib/voice-agent/human-speech-delivery";
 import { getXaiWebSocketSubprotocol } from "@/lib/voice-agent/xai-ws-protocol";
 
 const CHUNK_MS = 100;
@@ -24,7 +25,7 @@ type Params = {
 
 export type XaiVoiceAgentControls = {
   dispose: () => void;
-  speak: (text: string) => void;
+  speak: (text: string) => boolean;
 };
 
 export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
@@ -107,9 +108,9 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     if (!next) return;
 
     speakingScript = true;
-    const delivery = next.introduction
-      ? `Speak clearly at a confident, slightly louder volume. Say exactly: ${JSON.stringify(next.text)}`
-      : `Say exactly the following words and nothing else: ${JSON.stringify(next.text)}`;
+    const delivery = buildHumanSpeechDelivery(next.text, {
+      introduction: next.introduction,
+    });
     ws.send(
       JSON.stringify({
         type: "response.create",
@@ -123,16 +124,17 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     onDetail("Speaking in the meeting…");
   }
 
-  function speakExact(text: string, options?: { introduction?: boolean }) {
+  function speakExact(text: string, options?: { introduction?: boolean }): boolean {
     const trimmed = text.trim();
-    if (!trimmed) return;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!trimmed) return false;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
     if (!sessionReady) {
       pendingSpeech.push(trimmed);
-      return;
+      return true;
     }
     scriptedSpeech.push({ text: trimmed, introduction: options?.introduction });
     flushScriptedSpeech();
+    return true;
   }
 
   function sendGreeting() {
@@ -166,7 +168,7 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
             input: { format: { type: "audio/pcm", rate: XAI_PCM_SAMPLE_RATE } },
             output: { format: { type: "audio/pcm", rate: XAI_PCM_SAMPLE_RATE } },
           },
-          turn_detection: { type: "server_vad", silence_duration_ms: 600 },
+          turn_detection: { type: "server_vad", silence_duration_ms: 900 },
         },
       }),
     );

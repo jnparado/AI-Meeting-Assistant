@@ -111,7 +111,8 @@ export async function enqueueBotSpeech(
   return { id: item.id };
 }
 
-export async function claimBotSpeech(
+/** Read pending lines without marking them spoken yet. */
+export async function peekBotSpeech(
   supabase: Supabase,
   botId: string,
 ): Promise<{ id: string; text: string }[]> {
@@ -127,25 +128,65 @@ export async function claimBotSpeech(
 
   const metadata = (bot.metadata as Record<string, unknown> | null) ?? {};
   const queue = parseQueue(metadata);
+
+  return queue
+    .filter((item) => !item.deliveredAt && item.text.trim())
+    .map((item) => ({ id: item.id, text: item.text }));
+}
+
+export async function markBotSpeechDelivered(
+  supabase: Supabase,
+  botId: string,
+  ids: string[],
+): Promise<number> {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  if (uniqueIds.length === 0) return 0;
+
+  const { data: bot, error } = await supabase
+    .from("meeting_bots")
+    .select("metadata")
+    .eq("id", botId)
+    .single();
+
+  if (error || !bot) {
+    return 0;
+  }
+
+  const metadata = (bot.metadata as Record<string, unknown> | null) ?? {};
+  const queue = parseQueue(metadata);
+  const idSet = new Set(uniqueIds);
   const now = new Date().toISOString();
-  const claimed: { id: string; text: string }[] = [];
+  let marked = 0;
 
   const nextQueue = queue.map((item) => {
-    if (!item.deliveredAt) {
-      claimed.push({ id: item.id, text: item.text });
+    if (!item.deliveredAt && idSet.has(item.id)) {
+      marked += 1;
       return { ...item, deliveredAt: now };
     }
     return item;
   });
 
-  if (claimed.length === 0) {
-    return [];
-  }
+  if (marked === 0) return 0;
 
   await supabase
     .from("meeting_bots")
     .update({ metadata: { ...metadata, speech_queue: nextQueue } })
     .eq("id", botId);
 
-  return claimed;
+  return marked;
+}
+
+/** @deprecated Use peekBotSpeech + markBotSpeechDelivered */
+export async function claimBotSpeech(
+  supabase: Supabase,
+  botId: string,
+): Promise<{ id: string; text: string }[]> {
+  const pending = await peekBotSpeech(supabase, botId);
+  if (pending.length === 0) return [];
+  await markBotSpeechDelivered(
+    supabase,
+    botId,
+    pending.map((item) => item.id),
+  );
+  return pending;
 }

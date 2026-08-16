@@ -84,7 +84,7 @@ async function appendLiveConversationMetadata(
   const prior =
     (metadata.live_conversation as LiveConversationEntry[] | undefined) ?? [];
   const entry: LiveConversationEntry = {
-    speaker: segment.speaker,
+    speaker: segment.speaker ?? "Speaker",
     text: segment.text,
     at: new Date().toISOString(),
   };

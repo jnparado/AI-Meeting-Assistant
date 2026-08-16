@@ -2,6 +2,7 @@ import { getRecallPublicAppUrl } from "@/lib/bot/recall-config";
 import { updateRecallBotOutputMedia } from "@/lib/bot/recall";
 import { getVoiceAgentProvider, hasVoiceAgentLlm } from "@/lib/env";
 import { getDefaultBotName } from "@/lib/bot/default-bot-name";
+import { HUMAN_VOICE_AGENT_INSTRUCTIONS } from "@/lib/voice-agent/human-speech-delivery";
 import { createVoiceAgentToken } from "@/lib/voice-agent/token";
 
 export const DEFAULT_OPENAI_REALTIME_MODEL =
@@ -21,11 +22,9 @@ const DEFAULT_AGENT_TEAM = "AdMob";
 
 const DEFAULT_GREETING = "Hi, my name is Jerome from AdMob.";
 
-const DEFAULT_INSTRUCTIONS = `You are Jerome from AdMob, joining a live video meeting as a friendly assistant.
-Keep replies short (1–3 sentences). Listen to participants, answer questions clearly,
-and help summarize or clarify when asked. Be natural and conversational. You may say your name is Jerome from AdMob when helpful.`;
+const DEFAULT_INSTRUCTIONS = HUMAN_VOICE_AGENT_INSTRUCTIONS;
 
-const DEFAULT_OUTPUT_GAIN = 2.5;
+const DEFAULT_OUTPUT_GAIN = 1.6;
 
 export function isRecallVoiceAgentEnabled(): boolean {
   const v = process.env.RECALL_VOICE_AGENT_ENABLED?.trim().toLowerCase();
@@ -97,7 +96,7 @@ export function getRecallVoiceAgentTeamLabel(): string {
 export function getRecallVoiceAgentVoice(): string {
   const custom = process.env.RECALL_VOICE_AGENT_VOICE?.trim();
   if (custom) return custom;
-  return getVoiceAgentProvider() === "xai" ? "leo" : "verse";
+  return getVoiceAgentProvider() === "xai" ? "ara" : "verse";
 }
 
 export function getRecallVoiceAgentPageUrl(

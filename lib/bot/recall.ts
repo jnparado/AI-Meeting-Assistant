@@ -7,6 +7,7 @@ import {
 } from "@/lib/bot/recall-config";
 import { getRecallVoiceAgentExtras, getRecallVoiceAgentSetupHint, isRecallVoiceAgentEnabled, isRecallVoiceAgentUrlConfigured } from "@/lib/bot/recall-voice-agent";
 import { getRecallRealtimeEndpoints } from "@/lib/bot/recall-realtime";
+import { normalizeMeetingUrl } from "@/lib/calendar/parse-meeting-url";
 import type { BotStatus } from "@/lib/types/database";
 
 export type ScheduleBotInput = {
@@ -171,20 +172,106 @@ async function scheduleSimulatedBot(
   return { externalBotId, provider: "simulation" };
 }
 
+export async function leaveRecallBot(externalBotId: string): Promise<void> {
+  if (!hasRecall() || externalBotId.startsWith("sim_")) return;
+
+  const res = await fetch(
+    `${getRecallApiBase()}/api/v1/bot/${externalBotId}/leave_call/`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${process.env.RECALL_API_KEY}`,
+      },
+    },
+  );
+
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text();
+    if (
+      text.includes("cannot_command_completed_bot") ||
+      text.includes("cannot_command_unstarted_bot")
+    ) {
+      return;
+    }
+    throw new Error(`Recall leave_call failed: ${text}`);
+  }
+}
+
+/** Delete a scheduled bot, or remove it from the call if already joined. */
 export async function cancelRecallBot(externalBotId: string): Promise<void> {
   if (!hasRecall() || externalBotId.startsWith("sim_")) return;
 
-  const res = await fetch(`${getRecallApiBase()}/api/v1/bot/${externalBotId}/`, {
+  const delRes = await fetch(`${getRecallApiBase()}/api/v1/bot/${externalBotId}/`, {
     method: "DELETE",
     headers: {
       Authorization: `Token ${process.env.RECALL_API_KEY}`,
     },
   });
 
-  if (!res.ok && res.status !== 404) {
-    const text = await res.text();
-    throw new Error(`Recall cancel failed: ${text}`);
+  if (delRes.ok || delRes.status === 404) return;
+
+  if (delRes.status === 405) {
+    await leaveRecallBot(externalBotId);
+    return;
   }
+
+  const text = await delRes.text();
+  throw new Error(`Recall cancel failed: ${text}`);
+}
+
+/** Remove every Recall bot on a Meet link (same as npm run recall:remove-bots). */
+export async function removeAllRecallBotsForMeetingUrl(
+  meetingUrl: string,
+): Promise<{ removed: number; removedIds: string[] }> {
+  if (!hasRecall()) {
+    return { removed: 0, removedIds: [] };
+  }
+
+  const normalized = normalizeMeetingUrl(meetingUrl);
+  const listUrl = new URL(`${getRecallApiBase()}/api/v1/bot/`);
+  listUrl.searchParams.set("meeting_url", normalized);
+
+  const listRes = await fetch(listUrl, {
+    headers: {
+      Authorization: `Token ${process.env.RECALL_API_KEY}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!listRes.ok) {
+    const text = await listRes.text();
+    throw new Error(`Recall list bots failed: ${text}`);
+  }
+
+  const payload = (await listRes.json()) as
+    | unknown[]
+    | { results?: unknown[] };
+  const bots = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.results)
+      ? payload.results
+      : [];
+
+  let removed = 0;
+  const removedIds: string[] = [];
+  for (const row of bots) {
+    const id =
+      typeof row === "object" &&
+      row !== null &&
+      typeof (row as { id?: string }).id === "string"
+        ? (row as { id: string }).id
+        : null;
+    if (!id) continue;
+    try {
+      await cancelRecallBot(id);
+      removed += 1;
+      removedIds.push(id);
+    } catch (err) {
+      console.error(`removeAllRecallBotsForMeetingUrl cancel ${id}:`, err);
+    }
+  }
+
+  return { removed, removedIds };
 }
 
 export async function updateRecallBotOutputMedia(

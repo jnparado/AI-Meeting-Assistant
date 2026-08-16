@@ -37,6 +37,7 @@ type Props = {
   hasScheduledBot?: boolean;
   compact?: boolean;
   hideLeave?: boolean;
+  onBotSent?: () => void;
 };
 
 export function AssistantToggle({
@@ -49,6 +50,7 @@ export function AssistantToggle({
   hasScheduledBot = false,
   compact = false,
   hideLeave = false,
+  onBotSent,
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -143,6 +145,7 @@ export function AssistantToggle({
         setMeetingUrl(resolved);
       }
       setOn(true);
+      onBotSent?.();
       router.refresh();
     } catch (err) {
       setError(formatFetchError(err));
@@ -155,13 +158,13 @@ export function AssistantToggle({
     setLoading(true);
     setError(null);
     try {
-      const result = await stopMeetingBot(meetingId);
+      const result = await stopMeetingBot(meetingId, meetingUrl.trim() || undefined);
       if (!result.ok) {
         setError(result.error ?? "Could not stop the bot");
         return;
       }
       setOn(false);
-      router.refresh();
+      window.location.assign(`/dashboard/meetings/${meetingId}`);
     } catch (err) {
       setError(formatFetchError(err));
     } finally {
@@ -202,6 +205,7 @@ export function AssistantToggle({
       }
 
       setOn(true);
+      onBotSent?.();
       const provider =
         typeof data.provider === "string" ? data.provider : "simulation";
       const params = new URLSearchParams({

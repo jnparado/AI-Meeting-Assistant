@@ -136,11 +136,21 @@ export function getBotMonitorSteps(): readonly string[] {
 
 export function getBotStatusDisplay(
   status: BotStatus | null | undefined,
-  options?: { botName?: string; justJoined?: boolean },
+  options?: { botName?: string; justJoined?: boolean; hasBot?: boolean },
 ): BotStatusDisplay {
   const name = options?.botName?.trim() || "The bot";
 
   if (!status) {
+    if (options?.hasBot) {
+      return {
+        shortLabel: "Connecting",
+        headline: `${name} is connecting to Google Meet`,
+        detail: "Status updates every few seconds. Admit them from the waiting room when ready.",
+        tone: "active",
+        progressStep: 2,
+        progressTotal: MONITOR_STEPS.length,
+      };
+    }
     if (options?.justJoined) {
       return {
         shortLabel: "Sending to Meet",

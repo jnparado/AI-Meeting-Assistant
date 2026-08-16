@@ -67,6 +67,7 @@ export async function POST(request: Request) {
 
 const cancelSchema = z.object({
   meetingId: z.string().uuid(),
+  meetingUrl: z.string().min(8).max(2048).optional(),
 });
 
 export async function DELETE(request: Request) {
@@ -93,12 +94,18 @@ export async function DELETE(request: Request) {
 
   try {
     const organization = await requireActiveOrganization(user.id);
-    await cancelMeetingBotForUser(
+    const result = await cancelMeetingBotForUser(
       user.id,
       organization.id,
       parsed.data.meetingId,
+      parsed.data.meetingUrl,
     );
-    return NextResponse.json({ ok: true, enabled: false });
+    return NextResponse.json({
+      ok: true,
+      enabled: false,
+      removedFromRecall: result.removedFromRecall,
+      cancelledInDb: result.cancelledInDb,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to cancel";
     return NextResponse.json({ error: message }, { status: 400 });

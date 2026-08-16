@@ -6,6 +6,7 @@ import {
   Bot,
   ExternalLink,
   Loader2,
+  MessageSquareReply,
   Mic,
   Radio,
   Users,
@@ -18,6 +19,11 @@ import {
   getBotMonitorSteps,
   getBotStatusDisplay,
 } from "@/lib/bot/status-timeline";
+import {
+  draftReplyToMessage,
+  getLastParticipantMessage,
+  type ConversationFeedItem,
+} from "@/lib/transcripts/conversation-feed";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { BotStatus, TranscriptSegment } from "@/lib/types/database";
@@ -25,16 +31,50 @@ import type { BotStatus, TranscriptSegment } from "@/lib/types/database";
 type LivePayload = {
   isLive: boolean;
   hasBot: boolean;
-  hasActiveBot: boolean;
   canStop: boolean;
   canSpeak: boolean;
   botName: string | null;
   botStatus: BotStatus | null;
   segments: TranscriptSegment[];
+  conversation: ConversationFeedItem[];
   livePartial: { speaker: string; text: string } | null;
   pendingSpeechCount: number;
-  sentScripts: { text: string; delivered: boolean }[];
 };
+
+const BLOCKED_SPEAK_STATUSES = new Set<BotStatus>([
+  "failed",
+  "cancelled",
+  "completed",
+  "meeting_ended",
+]);
+
+function isSpeakBlocked(status: BotStatus | null | undefined): boolean {
+  return Boolean(status && BLOCKED_SPEAK_STATUSES.has(status));
+}
+
+function speakHint(input: {
+  speakEnabled: boolean;
+  hasBotRecord: boolean;
+  botStatus: BotStatus | null;
+  isLive: boolean;
+}): string {
+  if (!input.hasBotRecord && !input.speakEnabled) {
+    return "Send the bot to Meet first (button below).";
+  }
+  if (!input.speakEnabled) {
+    return "Send to Meet again and admit the bot, then click Speak now.";
+  }
+  if (input.botStatus === "waiting_room") {
+    return "Admit Jerome in Google Meet — his reply will speak once he joins.";
+  }
+  if (input.botStatus === "joining" || input.botStatus === "scheduled") {
+    return "Reply is queued — Jerome speaks once he is in the call.";
+  }
+  if (input.isLive) {
+    return "Jerome reads this word-for-word in the meeting.";
+  }
+  return "Type Jerome's reply, then click Speak now.";
+}
 
 type Props = {
   meetingId: string;
@@ -46,6 +86,7 @@ type Props = {
   aiAssistantEnabled?: boolean;
   voiceAgentEnabled?: boolean;
   initialSegments?: TranscriptSegment[];
+  defaultScript?: string;
 };
 
 function MonitorStepper({
@@ -140,35 +181,55 @@ export function BotMonitorPanel({
   aiAssistantEnabled = false,
   voiceAgentEnabled = false,
   initialSegments = [],
+  defaultScript = "",
 }: Props) {
   const searchParams = useSearchParams();
   const justJoined =
     searchParams.get("joined") === "1" ||
     searchParams.get("joined") === "existing";
-  const [script, setScript] = useState("");
+  const [script, setScript] = useState(defaultScript);
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(initialIsLive);
   const [hasBot, setHasBot] = useState(initialHasBot);
-  const [canSpeak, setCanSpeak] = useState(initialHasBot);
   const [botStatus, setBotStatus] = useState<BotStatus | null>(initialBotStatus);
   const [botName, setBotName] = useState<string | null>(
     initialBotName ?? null,
   );
-  const [segments, setSegments] = useState<TranscriptSegment[]>(initialSegments);
-  const [livePartial, setLivePartial] = useState<{
-    speaker: string;
-    text: string;
-  } | null>(null);
+  const [conversation, setConversation] = useState<ConversationFeedItem[]>(() =>
+    initialSegments.map((seg, i) => ({
+      id: `init-${i}`,
+      kind: "participant" as const,
+      speaker: seg.speaker ?? "Speaker",
+      text: seg.text,
+    })),
+  );
   const [pendingSpeechCount, setPendingSpeechCount] = useState(0);
-  const [sentScripts, setSentScripts] = useState<
-    { text: string; delivered: boolean }[]
-  >([]);
+  const [canStop, setCanStop] = useState(initialHasBot || initialIsLive);
+  const [canSpeak, setCanSpeak] = useState(
+    initialHasBot && !isSpeakBlocked(initialBotStatus),
+  );
   const feedRef = useRef<HTMLDivElement>(null);
 
   const displayBotName = botName?.trim() || "Jerome";
-  const showBotSession = hasBot || initialHasBot || justJoined;
+  const showBotSession = hasBot || initialHasBot || justJoined || canStop || isLive;
+  const hasBotRecord = hasBot || initialHasBot || justJoined || canStop || canSpeak;
+  const speakEnabled = canSpeak;
+  const lastParticipant = getLastParticipantMessage(conversation);
+
+  useEffect(() => {
+    if (justJoined) {
+      setHasBot(true);
+      setCanSpeak(true);
+    }
+  }, [justJoined]);
+
+  useEffect(() => {
+    if (defaultScript && !script.trim()) {
+      setScript(defaultScript);
+    }
+  }, [defaultScript, script]);
 
   const scrollFeed = useCallback(() => {
     const el = feedRef.current;
@@ -178,7 +239,7 @@ export function BotMonitorPanel({
 
   useEffect(() => {
     scrollFeed();
-  }, [segments, livePartial, sentScripts, scrollFeed]);
+  }, [conversation, scrollFeed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,13 +253,12 @@ export function BotMonitorPanel({
         setPollError(null);
         setIsLive(data.isLive);
         setHasBot(data.hasBot);
-        setCanSpeak(data.canSpeak);
+        setCanStop(data.canStop ?? data.hasBot);
+        setCanSpeak(data.canSpeak ?? false);
         setBotStatus(data.botStatus);
         setBotName(data.botName);
-        setSegments(data.segments ?? []);
-        setLivePartial(data.livePartial);
+        setConversation(data.conversation ?? []);
         setPendingSpeechCount(data.pendingSpeechCount ?? 0);
-        setSentScripts(data.sentScripts ?? []);
       } catch (err) {
         if (!cancelled) {
           setPollError(formatFetchError(err));
@@ -214,8 +274,8 @@ export function BotMonitorPanel({
     };
   }, [meetingId]);
 
-  async function speakScript() {
-    const trimmed = script.trim();
+  async function speakScript(textOverride?: string) {
+    const trimmed = (textOverride ?? script).trim();
     if (!trimmed) return;
 
     setSpeaking(true);
@@ -231,6 +291,17 @@ export function BotMonitorPanel({
         setError(data.error ?? "Could not send script to the bot");
         return;
       }
+      setConversation((prev) => [
+        ...prev.filter((item) => item.kind !== "partial"),
+        {
+          id: `local-${Date.now()}`,
+          kind: "your_reply",
+          speaker: `You → ${displayBotName}`,
+          text: trimmed,
+          delivered: false,
+        },
+      ]);
+      setPendingSpeechCount((count) => count + 1);
       setScript("");
     } catch (err) {
       setError(formatFetchError(err));
@@ -239,16 +310,26 @@ export function BotMonitorPanel({
     }
   }
 
+  function useLastMessageAsReply() {
+    if (!lastParticipant) return;
+    setScript(draftReplyToMessage(lastParticipant));
+  }
+
+  function useMessageAsReply(item: ConversationFeedItem) {
+    if (item.kind === "your_reply") return;
+    setScript(draftReplyToMessage(item));
+  }
+
   const statusDisplay = getBotStatusDisplay(botStatus, {
     botName: displayBotName,
-    justJoined,
+    justJoined: justJoined && !hasBot && !botStatus,
+    hasBot: hasBot || initialHasBot,
   });
   const toneClasses = botStatusToneClasses(statusDisplay.tone);
   const monitorSteps = getBotMonitorSteps();
 
   return (
     <Card className="overflow-hidden border-primary/20 shadow-sm">
-      {/* Header */}
       <div className="flex flex-col gap-4 border-b bg-muted/30 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
@@ -265,23 +346,21 @@ export function BotMonitorPanel({
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              {displayBotName} · monitor, speak, and leave
+              See the conversation, type Jerome&apos;s reply, speak in Meet
             </p>
           </div>
         </div>
 
-        {showBotSession && (
-          <BotLeaveButton
-            meetingId={meetingId}
-            botName={displayBotName}
-            label="Leave meeting"
-            size="lg"
-            className="w-full shrink-0 sm:w-auto"
-          />
-        )}
+        <BotLeaveButton
+          meetingId={meetingId}
+          meetingUrl={meetingUrl}
+          botName={displayBotName}
+          label={showBotSession ? "Leave meeting" : "Remove bot from Meet"}
+          size="lg"
+          className="w-full shrink-0 sm:w-auto"
+        />
       </div>
 
-      {/* Status */}
       {showBotSession && (
         <div
           className={`border-b px-5 py-4 ${toneClasses.panel}`}
@@ -335,26 +414,112 @@ export function BotMonitorPanel({
         </div>
       )}
 
-      {/* Speak + Monitor */}
-      {showBotSession && (
-        <div className="grid lg:grid-cols-2 lg:divide-x">
-          <section className="space-y-3 border-b p-5 lg:border-b-0">
+      <div className="space-y-4 p-5">
+        <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="size-4 text-primary" aria-hidden />
+                <h3 className="text-sm font-semibold">Conversation</h3>
+              </div>
+              {lastParticipant && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full gap-1.5"
+                  onClick={useLastMessageAsReply}
+                >
+                  <MessageSquareReply className="size-3.5" aria-hidden />
+                  Reply to last
+                </Button>
+              )}
+            </div>
+
+            <div
+              ref={feedRef}
+              className="min-h-[200px] max-h-80 space-y-2 overflow-y-auto rounded-xl border bg-muted/20 p-3"
+            >
+              {conversation.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {!hasBotRecord
+                    ? "Send Jerome to Meet first. When others talk in the meeting, their lines appear here."
+                    : botStatus === "waiting_room"
+                      ? "Admit Jerome in Google Meet. When others speak, you will see their words here."
+                      : isLive
+                        ? "Waiting for others to speak in the meeting…"
+                        : "Others' speech appears here once the bot joins and people talk in Meet."}
+                </p>
+              )}
+
+              {conversation.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => useMessageAsReply(item)}
+                  disabled={item.kind === "your_reply"}
+                  className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                    item.kind === "your_reply"
+                      ? "ml-4 border border-primary/20 bg-primary/10"
+                      : item.kind === "partial"
+                        ? "border border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10"
+                        : "bg-background hover:bg-background/90"
+                  } ${item.kind === "your_reply" ? "cursor-default" : "cursor-pointer"}`}
+                >
+                  <p className="text-xs font-medium text-primary">
+                    {item.speaker}
+                    {item.kind === "your_reply" && (
+                      <span className="ml-2 text-muted-foreground">
+                        {item.delivered ? "· spoken" : "· queued"}
+                      </span>
+                    )}
+                    {item.kind === "partial" && (
+                      <span className="ml-2 italic text-muted-foreground">
+                        · speaking…
+                      </span>
+                    )}
+                  </p>
+                  <p
+                    className={`mt-0.5 ${
+                      item.kind === "partial"
+                        ? "italic text-muted-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {item.text}
+                  </p>
+                  {item.kind !== "your_reply" && (
+                    <p className="mt-1 text-[11px] text-muted-foreground/80">
+                      Click to use as reply draft
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-3 rounded-xl border bg-background p-4">
             <div className="flex items-center gap-2">
               <Mic className="size-4 text-primary" aria-hidden />
-              <h3 className="text-sm font-semibold">Speak in meeting</h3>
+              <h3 className="text-sm font-semibold">
+                Jerome&apos;s reply (speaks in Meet)
+              </h3>
             </div>
             <textarea
               value={script}
               onChange={(e) => setScript(e.target.value)}
-              placeholder={`Type exactly what ${displayBotName} should say…`}
-              disabled={speaking || !canSpeak}
-              rows={6}
-              className="min-h-[140px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder={
+                lastParticipant
+                  ? `Type what ${displayBotName} should say in response…`
+                  : `Type exactly what ${displayBotName} should say…`
+              }
+              disabled={speaking}
+              rows={4}
+              className="min-h-[100px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             />
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
-                disabled={speaking || !canSpeak || !script.trim()}
+                disabled={speaking || !speakEnabled || !script.trim()}
                 onClick={() => void speakScript()}
                 className="rounded-full gap-2"
               >
@@ -367,78 +532,18 @@ export function BotMonitorPanel({
                   </>
                 )}
               </Button>
-              {!canSpeak && (
-                <span className="text-xs text-muted-foreground">
-                  Available once the bot is in the call
-                </span>
-              )}
-            </div>
-
-            {sentScripts.length > 0 && (
-              <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border bg-muted/20 p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Your scripts
-                </p>
-                {sentScripts.map((item, i) => (
-                  <div
-                    key={`${item.text.slice(0, 24)}-${i}`}
-                    className="rounded-lg bg-background px-3 py-2 text-sm"
-                  >
-                    <p className="text-xs text-muted-foreground">
-                      {item.delivered ? "Spoken" : "Queued"}
-                    </p>
-                    <p className="mt-0.5 leading-relaxed">{item.text}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-3 p-5">
-            <div className="flex items-center gap-2">
-              <Users className="size-4 text-primary" aria-hidden />
-              <h3 className="text-sm font-semibold">
-                {isLive ? "Live conversation" : "Meeting monitor"}
-              </h3>
-            </div>
-            <div
-              ref={feedRef}
-              className="min-h-[220px] max-h-72 space-y-2 overflow-y-auto rounded-xl border bg-muted/20 p-3"
-            >
-              {segments.length === 0 && !livePartial && (
-                <p className="text-sm text-muted-foreground">
-                  {isLive
-                    ? "Waiting for others to speak…"
-                    : "Others’ speech appears here once the bot joins."}
-                </p>
-              )}
-              {segments.map((seg, i) => (
-                <div
-                  key={`${seg.speaker}-${i}-${seg.text.slice(0, 24)}`}
-                  className="rounded-lg bg-background px-3 py-2 text-sm"
-                >
-                  <p className="text-xs font-medium text-primary">
-                    {seg.speaker ?? "Speaker"}
-                  </p>
-                  <p className="mt-0.5 text-muted-foreground">{seg.text}</p>
-                </div>
-              ))}
-              {livePartial && (
-                <div className="rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-sm">
-                  <p className="text-xs font-medium text-primary">
-                    {livePartial.speaker}
-                  </p>
-                  <p className="mt-0.5 italic text-muted-foreground">
-                    {livePartial.text}
-                  </p>
-                </div>
-              )}
+              <span className="text-xs text-muted-foreground">
+                {speakHint({
+                  speakEnabled,
+                  hasBotRecord,
+                  botStatus,
+                  isLive,
+                })}
+              </span>
             </div>
           </section>
         </div>
-      )}
 
-      {/* Send bot */}
       <div className="border-t bg-muted/20 px-5 py-4">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Send bot to Google Meet
@@ -449,10 +554,14 @@ export function BotMonitorPanel({
           enabled={aiAssistantEnabled}
           initialBotName={initialBotName ?? undefined}
           voiceAgentEnabled={voiceAgentEnabled}
-          botStatus={initialBotStatus}
-          hasScheduledBot={initialHasBot || hasBot}
+          botStatus={botStatus ?? initialBotStatus}
+          hasScheduledBot={initialHasBot || hasBot || justJoined}
           compact
           hideLeave
+          onBotSent={() => {
+            setHasBot(true);
+            setCanSpeak(true);
+          }}
         />
       </div>
 
