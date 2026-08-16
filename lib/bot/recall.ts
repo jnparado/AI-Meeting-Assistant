@@ -219,6 +219,88 @@ export async function cancelRecallBot(externalBotId: string): Promise<void> {
   throw new Error(`Recall cancel failed: ${text}`);
 }
 
+const RECALL_TERMINAL_CODES = new Set([
+  "done",
+  "completed",
+  "failed",
+  "fatal",
+  "call_ended",
+]);
+
+export type RecallBotListRow = {
+  id: string;
+  bot_name: string | null;
+  created_at: string | null;
+  statusCode: string;
+  internalBotId: string | null;
+};
+
+export async function listRecallBotsForMeetingUrl(
+  meetingUrl: string,
+): Promise<RecallBotListRow[]> {
+  if (!hasRecall()) return [];
+
+  const normalized = normalizeMeetingUrl(meetingUrl);
+  const listUrl = new URL(`${getRecallApiBase()}/api/v1/bot/`);
+  listUrl.searchParams.set("meeting_url", normalized);
+
+  const listRes = await fetch(listUrl, {
+    headers: {
+      Authorization: `Token ${process.env.RECALL_API_KEY}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!listRes.ok) return [];
+
+  const payload = (await listRes.json()) as unknown[] | { results?: unknown[] };
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.results)
+      ? payload.results
+      : [];
+
+  return rows
+    .map((row) => {
+      if (typeof row !== "object" || row === null) return null;
+      const record = row as {
+        id?: string;
+        bot_name?: string | null;
+        created_at?: string | null;
+        status_changes?: { code?: string }[];
+        metadata?: { internal_bot_id?: string };
+      };
+      if (!record.id) return null;
+      const statusChanges = record.status_changes ?? [];
+      const statusCode =
+        statusChanges[statusChanges.length - 1]?.code ?? "unknown";
+      return {
+        id: record.id,
+        bot_name: record.bot_name ?? null,
+        created_at: record.created_at ?? null,
+        statusCode,
+        internalBotId: record.metadata?.internal_bot_id?.trim() ?? null,
+      } satisfies RecallBotListRow;
+    })
+    .filter((row): row is RecallBotListRow => row !== null)
+    .sort(
+      (a, b) =>
+        new Date(b.created_at ?? 0).getTime() -
+        new Date(a.created_at ?? 0).getTime(),
+    );
+}
+
+/** Newest Recall bot on this Meet link that is not finished. */
+export async function findNewestLiveRecallBotForMeetingUrl(
+  meetingUrl: string,
+): Promise<RecallBotListRow | null> {
+  const bots = await listRecallBotsForMeetingUrl(meetingUrl);
+  return (
+    bots.find((bot) => !RECALL_TERMINAL_CODES.has(String(bot.statusCode))) ??
+    null
+  );
+}
+
 /** Remove every Recall bot on a Meet link (same as npm run recall:remove-bots). */
 export async function removeAllRecallBotsForMeetingUrl(
   meetingUrl: string,

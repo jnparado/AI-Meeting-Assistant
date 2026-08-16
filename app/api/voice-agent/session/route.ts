@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   getRecallVoiceAgentDisplayName,
-  getRecallVoiceAgentGreeting,
   getRecallVoiceAgentInstructions,
   getRecallVoiceAgentOutputGain,
   getRecallVoiceAgentTeamLabel,
@@ -65,9 +64,9 @@ export async function POST(request: Request) {
 
   const apiKey = getVoiceAgentApiKey()!;
   const provider = getVoiceAgentProvider();
-  const greeting = getRecallVoiceAgentGreeting(botName ?? undefined);
   const displayName = getRecallVoiceAgentDisplayName(botName ?? undefined);
   const teamLabel = getRecallVoiceAgentTeamLabel();
+  const greeting = "";
 
   try {
     if (provider === "xai") {

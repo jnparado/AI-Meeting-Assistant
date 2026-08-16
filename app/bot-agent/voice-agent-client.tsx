@@ -13,7 +13,7 @@ type Props = {
 
 type AgentStatus = "connecting" | "connected" | "speaking" | "listening" | "error";
 
-const DEFAULT_GREETING = "Hi, my name is Jerome from AdMob.";
+const DEFAULT_GREETING = "";
 
 type SessionPayload = {
   mode?: "websocket" | "webrtc";
@@ -58,13 +58,16 @@ function isPeerActive(pc: RTCPeerConnection | null, disposed: boolean): pc is RT
   return Boolean(pc && !disposed && pc.signalingState !== "closed");
 }
 
+type SpeakFn = (text: string, onDone?: () => void) => boolean;
+
 export function VoiceAgentClient({ token, botName, botId }: Props) {
   const [status, setStatus] = useState<AgentStatus>("connecting");
   const [detail, setDetail] = useState("Starting voice agent…");
   const [displayName, setDisplayName] = useState("Jerome");
   const [teamLabel, setTeamLabel] = useState("AdMob");
-  const speakRef = useRef<(text: string) => boolean>(() => false);
+  const speakRef = useRef<SpeakFn>(() => false);
   const agentReadyRef = useRef(false);
+  const pendingAckRef = useRef<string | null>(null);
 
   useEffect(() => {
     agentReadyRef.current =
@@ -74,49 +77,60 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
   }, [status]);
 
   useEffect(() => {
-    if (!botId?.trim() || !token) return;
+    if (!token) return;
 
     let cancelled = false;
 
+    async function ackDelivered(id: string) {
+      const params = new URLSearchParams({
+        token: token ?? "",
+      });
+      if (botId?.trim()) params.set("botId", botId.trim());
+      if (botName?.trim()) params.set("botName", botName.trim());
+
+      await fetch(`/api/voice-agent/speech-queue?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliveredIds: [id] }),
+      });
+    }
+
     async function pollSpeechQueue() {
-      if (!agentReadyRef.current) return;
+      if (!agentReadyRef.current || pendingAckRef.current) return;
       try {
         const params = new URLSearchParams({
-          botId: botId!.trim(),
           token: token ?? "",
         });
+        if (botId?.trim()) params.set("botId", botId.trim());
+        if (botName?.trim()) params.set("botName", botName.trim());
+
         const res = await fetch(`/api/voice-agent/speech-queue?${params}`);
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as {
           items?: { id?: string; text?: string }[];
         };
-        const deliveredIds: string[] = [];
-        for (const item of data.items ?? []) {
-          if (!item.id || !item.text?.trim()) continue;
-          if (speakRef.current(item.text)) {
-            deliveredIds.push(item.id);
-          } else {
-            break;
-          }
-        }
-        if (deliveredIds.length === 0 || cancelled) return;
-        await fetch(`/api/voice-agent/speech-queue?${params}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deliveredIds }),
+        const item = data.items?.[0];
+        if (!item?.id || !item.text?.trim() || cancelled) return;
+
+        const spoke = speakRef.current(item.text, () => {
+          pendingAckRef.current = null;
+          void ackDelivered(item.id!);
         });
+        if (spoke) {
+          pendingAckRef.current = item.id;
+        }
       } catch {
         /* ignore transient poll errors */
       }
     }
 
     void pollSpeechQueue();
-    const id = window.setInterval(() => void pollSpeechQueue(), 2000);
+    const id = window.setInterval(() => void pollSpeechQueue(), 1500);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [botId, token]);
+  }, [botId, botName, token]);
 
   useEffect(() => {
     let disposed = false;
@@ -129,10 +143,13 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
     let outputGain = 2.5;
     let webrtcAudioContext: AudioContext | null = null;
 
-    speakRef.current = (text: string) => {
+    let webrtcSpeechDone: (() => void) | null = null;
+
+    speakRef.current = (text: string, onDone?: () => void) => {
       const trimmed = text.trim();
       if (!trimmed) return false;
       if (dataChannel?.readyState === "open") {
+        webrtcSpeechDone = onDone ?? null;
         sendExactSpeech(dataChannel, trimmed);
         safe.setStatus("speaking");
         safe.setDetail("Speaking in the meeting…");
@@ -185,9 +202,14 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
         return;
       }
       greetingSent = true;
+      if (!greetingText.trim()) {
+        safe.setStatus("listening");
+        safe.setDetail("Live — ready when you click Speak now.");
+        return;
+      }
       sendGreeting(dataChannel, greetingText);
       safe.setStatus("connected");
-      safe.setDetail("Live — introducing himself…");
+      safe.setDetail("Speaking in the meeting…");
     }
 
     async function connectWebRtc(offerSdp: string) {
@@ -245,6 +267,8 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
             safe.setDetail("Speaking in the meeting…");
           }
           if (msg.type === "response.done") {
+            webrtcSpeechDone?.();
+            webrtcSpeechDone = null;
             safe.setStatus("listening");
             safe.setDetail("Listening — ask Jerome a question.");
           }

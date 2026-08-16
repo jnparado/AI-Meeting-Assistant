@@ -25,7 +25,7 @@ type Params = {
 
 export type XaiVoiceAgentControls = {
   dispose: () => void;
-  speak: (text: string) => boolean;
+  speak: (text: string, onDone?: () => void) => boolean;
 };
 
 export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
@@ -49,8 +49,12 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
   let silentSink: GainNode | null = null;
   let sessionReady = false;
   let greetingSent = false;
-  let pendingSpeech: string[] = [];
-  let scriptedSpeech: { text: string; introduction?: boolean }[] = [];
+  let pendingSpeech: { text: string; onDone?: () => void }[] = [];
+  let scriptedSpeech: {
+    text: string;
+    introduction?: boolean;
+    onDone?: () => void;
+  }[] = [];
   let speakingScript = false;
   let playbackQueue: Float32Array[] = [];
   let playing = false;
@@ -122,27 +126,43 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     );
     onStatus("speaking");
     onDetail("Speaking in the meeting…");
+    currentScriptDone = next.onDone ?? null;
   }
 
-  function speakExact(text: string, options?: { introduction?: boolean }): boolean {
+  let currentScriptDone: (() => void) | null = null;
+
+  function speakExact(
+    text: string,
+    options?: { introduction?: boolean; onDone?: () => void },
+  ): boolean {
     const trimmed = text.trim();
     if (!trimmed) return false;
     if (!ws || ws.readyState !== WebSocket.OPEN) return false;
     if (!sessionReady) {
-      pendingSpeech.push(trimmed);
+      pendingSpeech.push({ text: trimmed, onDone: options?.onDone });
       return true;
     }
-    scriptedSpeech.push({ text: trimmed, introduction: options?.introduction });
+    scriptedSpeech.push({
+      text: trimmed,
+      introduction: options?.introduction,
+      onDone: options?.onDone,
+    });
     flushScriptedSpeech();
     return true;
   }
 
   function sendGreeting() {
+    if (!greeting.trim()) {
+      greetingSent = true;
+      onStatus("listening");
+      onDetail("Live — ready when you click Speak now.");
+      return;
+    }
     if (!ws || ws.readyState !== WebSocket.OPEN || greetingSent) return;
     greetingSent = true;
     speakExact(greeting, { introduction: true });
     onStatus("connected");
-    onDetail("Live — introducing himself…");
+    onDetail("Speaking in the meeting…");
   }
 
   function markSessionReady() {
@@ -150,8 +170,8 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     sessionReady = true;
     startMicCapture();
     sendGreeting();
-    for (const text of pendingSpeech) {
-      speakExact(text);
+    for (const item of pendingSpeech) {
+      speakExact(item.text, { onDone: item.onDone });
     }
     pendingSpeech = [];
   }
@@ -251,6 +271,8 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
 
           if (msg.type === "response.done") {
             speakingScript = false;
+            currentScriptDone?.();
+            currentScriptDone = null;
             flushScriptedSpeech();
             onStatus("listening");
             onDetail("Listening — ask Jerome a question.");
@@ -357,6 +379,7 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
       ws?.close();
       void audioContext?.close();
     },
-    speak: speakExact,
+    speak: (text: string, onDone?: () => void) =>
+      speakExact(text, { onDone }),
   };
 }

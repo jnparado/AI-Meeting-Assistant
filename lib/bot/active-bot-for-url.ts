@@ -61,7 +61,6 @@ export async function findActiveBotForMeetingUrl(
       "id, meeting_id, bot_name, status, external_bot_id, scheduled_for, created_at",
     )
     .in("meeting_id", meetingIds)
-    .eq("user_id", userId)
     .in("status", [...ACTIVE_BOT_STATUSES])
     .order("created_at", { ascending: false })
     .limit(1);

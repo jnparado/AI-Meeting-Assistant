@@ -19,11 +19,13 @@ import {
   isActiveBotStatus,
   refreshMeetingBotFromRecall,
 } from "@/lib/bot/refresh-recall-bot-status";
+import { hasRecall } from "@/lib/env";
 import { assertRecallPublicAppUrlReachable } from "@/lib/bot/verify-recall-public-url";
 import {
   isRecallVoiceAgentEnabled,
   refreshRecallVoiceAgentOutputMedia,
 } from "@/lib/bot/recall-voice-agent";
+import { findNewestLiveRecallBotForMeetingUrl } from "@/lib/bot/recall";
 
 const JOIN_LEAD_MINUTES = 1;
 
@@ -76,6 +78,30 @@ export async function createMeetingBotForUser(
       activeForUrl = null;
     } else if (liveStatus) {
       activeForUrl = { ...activeForUrl, status: liveStatus };
+    }
+  } else if (activeForUrl) {
+    activeForUrl = null;
+  }
+
+  if (input.joinNow && hasRecall()) {
+    const recallLive = await findNewestLiveRecallBotForMeetingUrl(joinUrl);
+    if (!recallLive) {
+      activeForUrl = null;
+    } else if (
+      activeForUrl &&
+      activeForUrl.external_bot_id &&
+      activeForUrl.external_bot_id !== recallLive.id
+    ) {
+      const { data: recallRow } = await supabase
+        .from("meeting_bots")
+        .select(
+          "id, meeting_id, bot_name, status, external_bot_id, scheduled_for, created_at",
+        )
+        .eq("external_bot_id", recallLive.id)
+        .maybeSingle();
+      if (recallRow) {
+        activeForUrl = recallRow as typeof activeForUrl;
+      }
     }
   }
 

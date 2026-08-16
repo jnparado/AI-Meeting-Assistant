@@ -5,7 +5,7 @@ import { getActiveOrganization } from "@/lib/org/server";
 import { ensureUserWorkspaceFromSession } from "@/lib/org/ensure-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { loadMeetingForUserSecure } from "@/lib/meetings/load-meeting-for-user";
-import { canUseRecallVoiceAgent, getRecallVoiceAgentGreeting } from "@/lib/bot/recall-voice-agent";
+import { canUseRecallVoiceAgent, getRecallVoiceAgentDefaultScript } from "@/lib/bot/recall-voice-agent";
 import { BotMonitorPanel } from "@/components/bot-monitor-panel";
 import { MeetingQnaPanel } from "@/components/meeting-qna-panel";
 import { EmailSummaryApproval } from "@/components/email-summary-approval";
@@ -106,13 +106,9 @@ export default async function MeetingDetailPage({
   ]);
   const isLive = bot?.status ? liveStatuses.has(bot.status as BotStatus) : false;
   const voiceAgentEnabled = canUseRecallVoiceAgent();
-  const defaultScript =
-    bot?.status &&
-    !["cancelled", "failed", "completed", "meeting_ended"].includes(
-      String(bot.status),
-    )
-      ? getRecallVoiceAgentGreeting((bot.bot_name as string | null) ?? undefined)
-      : "";
+  const defaultScript = getRecallVoiceAgentDefaultScript(
+    (bot?.bot_name as string | null) ?? undefined,
+  );
 
   return (
     <div className="space-y-6">

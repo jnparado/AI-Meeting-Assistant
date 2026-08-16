@@ -1,5 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findActiveBotForMeetingUrl } from "@/lib/bot/active-bot-for-url";
+import {
+  findNewestLiveRecallBotForMeetingUrl,
+  mapRecallStatus,
+} from "@/lib/bot/recall";
+import {
+  isActiveBotStatus,
+  refreshMeetingBotFromRecall,
+} from "@/lib/bot/refresh-recall-bot-status";
+import { isBotControllable } from "@/lib/bot/bot-control-status";
+import { hasRecall } from "@/lib/env";
+import { createServiceClient } from "@/lib/supabase/server";
 import type { BotStatus } from "@/lib/types/database";
 
 export type ResolvedMeetingBot = {
@@ -9,7 +20,7 @@ export type ResolvedMeetingBot = {
   external_bot_id: string | null;
   metadata: Record<string, unknown> | null;
   meeting_id: string;
-  source: "meeting_id" | "meeting_url";
+  source: "meeting_id" | "meeting_url" | "recall_api";
 };
 
 type BotRow = {
@@ -36,7 +47,10 @@ const TERMINAL_STATUSES = new Set([
   "meeting_ended",
 ]);
 
-function toResolved(row: BotRow, source: ResolvedMeetingBot["source"]): ResolvedMeetingBot {
+function toResolved(
+  row: BotRow,
+  source: ResolvedMeetingBot["source"],
+): ResolvedMeetingBot {
   return {
     id: String(row.id),
     status: String(row.status) as BotStatus,
@@ -48,10 +62,8 @@ function toResolved(row: BotRow, source: ResolvedMeetingBot["source"]): Resolved
   };
 }
 
-async function loadBotById(
-  supabase: SupabaseClient,
-  id: string,
-): Promise<ResolvedMeetingBot | null> {
+async function loadBotById(id: string): Promise<ResolvedMeetingBot | null> {
+  const supabase = createServiceClient();
   const { data: fullBot } = await supabase
     .from("meeting_bots")
     .select("id, status, bot_name, external_bot_id, metadata, meeting_id")
@@ -60,7 +72,77 @@ async function loadBotById(
   return fullBot?.id ? toResolved(fullBot as BotRow, "meeting_url") : null;
 }
 
-/** Active bot for this meeting — prefers a live bot on the same Meet URL over a stale cancelled row. */
+async function loadBotByExternalId(
+  externalBotId: string,
+): Promise<ResolvedMeetingBot | null> {
+  const supabase = createServiceClient();
+  const { data: fullBot } = await supabase
+    .from("meeting_bots")
+    .select("id, status, bot_name, external_bot_id, metadata, meeting_id")
+    .eq("external_bot_id", externalBotId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return fullBot?.id ? toResolved(fullBot as BotRow, "recall_api") : null;
+}
+
+async function refreshResolved(
+  bot: ResolvedMeetingBot,
+): Promise<ResolvedMeetingBot | null> {
+  if (!bot.external_bot_id) {
+    return isBotControllable(bot.status) ? bot : null;
+  }
+
+  const refreshed = await refreshMeetingBotFromRecall({
+    id: bot.id,
+    external_bot_id: bot.external_bot_id,
+    status: bot.status,
+  });
+
+  if (!refreshed || !isBotControllable(refreshed)) {
+    return null;
+  }
+
+  return { ...bot, status: refreshed };
+}
+
+async function resolveFromRecallApi(
+  meetingUrl: string,
+): Promise<ResolvedMeetingBot | null> {
+  if (!hasRecall()) return null;
+
+  const recallBot = await findNewestLiveRecallBotForMeetingUrl(meetingUrl);
+  if (!recallBot) return null;
+
+  let row =
+    (recallBot.internalBotId
+      ? await loadBotById(recallBot.internalBotId)
+      : null) ?? (await loadBotByExternalId(recallBot.id));
+
+  if (!row) return null;
+
+  const mapped = mapRecallStatus(recallBot.statusCode);
+  const supabase = createServiceClient();
+  if (row.status !== mapped || row.external_bot_id !== recallBot.id) {
+    await supabase
+      .from("meeting_bots")
+      .update({
+        status: mapped,
+        external_bot_id: recallBot.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+    row = {
+      ...row,
+      status: mapped,
+      external_bot_id: recallBot.id,
+    };
+  }
+
+  return refreshResolved(row);
+}
+
+/** Active bot for this meeting — prefers live Recall bots over stale DB rows. */
 export async function resolveActiveMeetingBot(input: {
   supabase: SupabaseClient;
   meetingId: string;
@@ -68,39 +150,54 @@ export async function resolveActiveMeetingBot(input: {
   userId: string;
   meetingUrl?: string | null;
 }): Promise<ResolvedMeetingBot | null> {
+  void input.supabase;
+
   const url = input.meetingUrl?.trim();
+
   if (url) {
+    const fromRecall = await resolveFromRecallApi(url);
+    if (fromRecall) return fromRecall;
+
     const byUrl = await findActiveBotForMeetingUrl(
       input.organizationId,
       input.userId,
       url,
     );
     if (byUrl?.id) {
-      const loaded = await loadBotById(input.supabase, String(byUrl.id));
-      if (loaded) return loaded;
+      const loaded = await loadBotById(String(byUrl.id));
+      if (loaded) {
+        const refreshed = await refreshResolved(loaded);
+        if (refreshed) return refreshed;
+      }
     }
   }
 
-  const { data: directBot } = await input.supabase
+  const service = createServiceClient();
+  const { data: directBots } = await service
     .from("meeting_bots")
     .select("id, status, bot_name, external_bot_id, metadata, meeting_id")
     .eq("meeting_id", input.meetingId)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(5);
 
-  if (!directBot?.id) return null;
+  for (const directBot of directBots ?? []) {
+    if (!directBot?.id) continue;
+    const status = String(directBot.status);
+    if (TERMINAL_STATUSES.has(status)) continue;
 
-  const status = String(directBot.status);
-  if (TERMINAL_STATUSES.has(status)) return null;
-  if (
-    ACTIVE_STATUSES.includes(status as (typeof ACTIVE_STATUSES)[number]) ||
-    status === "processing"
-  ) {
-    return toResolved(directBot as BotRow, "meeting_id");
+    const row = toResolved(directBot as BotRow, "meeting_id");
+    const refreshed = await refreshResolved(row);
+    if (refreshed) return refreshed;
+
+    if (
+      ACTIVE_STATUSES.includes(status as (typeof ACTIVE_STATUSES)[number]) ||
+      status === "processing"
+    ) {
+      return row;
+    }
   }
 
-  return toResolved(directBot as BotRow, "meeting_id");
+  return null;
 }
 
 /** All active bots for a meeting id and/or the same Meet URL. */
@@ -112,8 +209,9 @@ export async function listStoppableBotsForMeeting(input: {
   meetingUrl?: string | null;
 }): Promise<BotRow[]> {
   const rows = new Map<string, BotRow>();
+  const service = createServiceClient();
 
-  const { data: meetingBots } = await input.supabase
+  const { data: meetingBots } = await service
     .from("meeting_bots")
     .select("id, status, bot_name, external_bot_id, metadata, meeting_id")
     .eq("meeting_id", input.meetingId)
@@ -131,13 +229,16 @@ export async function listStoppableBotsForMeeting(input: {
       url,
     );
     if (byUrl) {
-      const { data: fullBot } = await input.supabase
-        .from("meeting_bots")
-        .select("id, status, bot_name, external_bot_id, metadata, meeting_id")
-        .eq("id", byUrl.id)
-        .maybeSingle();
-      if (fullBot) {
-        rows.set(String(fullBot.id), fullBot as BotRow);
+      const loaded = await loadBotById(String(byUrl.id));
+      if (loaded) {
+        rows.set(loaded.id, {
+          id: loaded.id,
+          status: loaded.status,
+          bot_name: loaded.bot_name,
+          external_bot_id: loaded.external_bot_id,
+          metadata: loaded.metadata,
+          meeting_id: loaded.meeting_id,
+        });
       }
     }
   }

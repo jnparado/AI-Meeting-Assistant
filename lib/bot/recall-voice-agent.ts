@@ -20,11 +20,28 @@ export function getRecallRealtimeModel(): string {
 const DEFAULT_AGENT_NAME = "Jerome";
 const DEFAULT_AGENT_TEAM = "AdMob";
 
-const DEFAULT_GREETING = "Hi, my name is Jerome from AdMob.";
-
-const DEFAULT_INSTRUCTIONS = HUMAN_VOICE_AGENT_INSTRUCTIONS;
-
 const DEFAULT_OUTPUT_GAIN = 1.6;
+
+/** Default text pre-filled in “Speak now” (not spoken automatically on join). */
+export function getRecallVoiceAgentDefaultScript(botName?: string): string {
+  const custom = process.env.RECALL_VOICE_AGENT_GREETING?.trim();
+  if (custom) return custom;
+  void botName;
+  return "";
+}
+
+/** @deprecated Use getRecallVoiceAgentDefaultScript for UI; join greeting is disabled. */
+export function getRecallVoiceAgentGreeting(botName?: string): string {
+  return getRecallVoiceAgentDefaultScript(botName);
+}
+
+export function getRecallVoiceAgentInstructions(botName?: string): string {
+  void botName;
+  return (
+    process.env.RECALL_VOICE_AGENT_INSTRUCTIONS?.trim() ||
+    HUMAN_VOICE_AGENT_INSTRUCTIONS
+  );
+}
 
 export function isRecallVoiceAgentEnabled(): boolean {
   const v = process.env.RECALL_VOICE_AGENT_ENABLED?.trim().toLowerCase();
@@ -46,29 +63,6 @@ export function isRecallVoiceAgentUrlConfigured(): boolean {
     !url.includes("localhost") &&
     !url.includes("127.0.0.1")
   );
-}
-
-/** Spoken once when the bot connects to the meeting. */
-export function getRecallVoiceAgentGreeting(botName?: string): string {
-  const custom = process.env.RECALL_VOICE_AGENT_GREETING?.trim();
-  if (custom) return custom;
-
-  const meetName = botName?.trim() || getDefaultBotName();
-  if (/adsense\s+john/i.test(meetName) || meetName.toLowerCase() === "john") {
-    return DEFAULT_GREETING;
-  }
-  if (/jerome/i.test(meetName)) {
-    return DEFAULT_GREETING;
-  }
-
-  return `Hi, my name is ${meetName}. Nice to meet you.`;
-}
-
-export function getRecallVoiceAgentInstructions(botName?: string): string {
-  const base =
-    process.env.RECALL_VOICE_AGENT_INSTRUCTIONS?.trim() || DEFAULT_INSTRUCTIONS;
-  const greeting = getRecallVoiceAgentGreeting(botName);
-  return `${base}\n\nWhen the meeting starts, your first words must be exactly: "${greeting}" Then listen and respond briefly.`;
 }
 
 export function getRecallVoiceAgentDisplayName(botName?: string): string {
@@ -96,7 +90,7 @@ export function getRecallVoiceAgentTeamLabel(): string {
 export function getRecallVoiceAgentVoice(): string {
   const custom = process.env.RECALL_VOICE_AGENT_VOICE?.trim();
   if (custom) return custom;
-  return getVoiceAgentProvider() === "xai" ? "ara" : "verse";
+  return getVoiceAgentProvider() === "xai" ? "leo" : "verse";
 }
 
 export function getRecallVoiceAgentPageUrl(

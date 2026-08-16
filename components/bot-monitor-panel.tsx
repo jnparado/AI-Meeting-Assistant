@@ -33,6 +33,7 @@ type LivePayload = {
   hasBot: boolean;
   canStop: boolean;
   canSpeak: boolean;
+  botId: string | null;
   botName: string | null;
   botStatus: BotStatus | null;
   segments: TranscriptSegment[];
@@ -57,9 +58,13 @@ function speakHint(input: {
   hasBotRecord: boolean;
   botStatus: BotStatus | null;
   isLive: boolean;
+  hasScript: boolean;
 }): string {
+  if (!input.hasScript) {
+    return "Loading intro script…";
+  }
   if (!input.hasBotRecord && !input.speakEnabled) {
-    return "Send the bot to Meet first (button below).";
+    return "Send Jerome to Meet below first, then click Speak now.";
   }
   if (!input.speakEnabled) {
     return "Send to Meet again and admit the bot, then click Speak now.";
@@ -215,7 +220,9 @@ export function BotMonitorPanel({
   const displayBotName = botName?.trim() || "Jerome";
   const showBotSession = hasBot || initialHasBot || justJoined || canStop || isLive;
   const hasBotRecord = hasBot || initialHasBot || justJoined || canStop || canSpeak;
-  const speakEnabled = canSpeak;
+  const speakEnabled =
+    canSpeak ||
+    (hasBotRecord && !isSpeakBlocked(botStatus) && Boolean(botStatus || isLive));
   const lastParticipant = getLastParticipantMessage(conversation);
 
   useEffect(() => {
@@ -226,10 +233,34 @@ export function BotMonitorPanel({
   }, [justJoined]);
 
   useEffect(() => {
-    if (defaultScript && !script.trim()) {
-      setScript(defaultScript);
+    if (defaultScript.trim()) {
+      setScript((current) => (current.trim() ? current : defaultScript));
     }
-  }, [defaultScript, script]);
+  }, [defaultScript]);
+
+  useEffect(() => {
+    if (!voiceAgentEnabled) return;
+    let cancelled = false;
+
+    async function loadDefaultScript() {
+      try {
+        const res = await fetch(`/api/meetings/${meetingId}/default-script`);
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { script?: string };
+        const text = data.script?.trim();
+        if (text && !cancelled) {
+          setScript((current) => (current.trim() ? current : text));
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    void loadDefaultScript();
+    return () => {
+      cancelled = true;
+    };
+  }, [meetingId, voiceAgentEnabled]);
 
   const scrollFeed = useCallback(() => {
     const el = feedRef.current;
@@ -274,9 +305,9 @@ export function BotMonitorPanel({
     };
   }, [meetingId]);
 
-  async function speakScript(textOverride?: string) {
-    const trimmed = (textOverride ?? script).trim();
-    if (!trimmed) return;
+  async function handleSpeakNow() {
+    const trimmed = script.trim();
+    if (!trimmed || speaking) return;
 
     setSpeaking(true);
     setError(null);
@@ -286,7 +317,10 @@ export function BotMonitorPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: trimmed }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        lines?: string[];
+      };
       if (!res.ok) {
         setError(data.error ?? "Could not send script to the bot");
         return;
@@ -301,8 +335,7 @@ export function BotMonitorPanel({
           delivered: false,
         },
       ]);
-      setPendingSpeechCount((count) => count + 1);
-      setScript("");
+      setPendingSpeechCount((count) => count + (data.lines?.length ?? 1));
     } catch (err) {
       setError(formatFetchError(err));
     } finally {
@@ -519,8 +552,8 @@ export function BotMonitorPanel({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
-                disabled={speaking || !speakEnabled || !script.trim()}
-                onClick={() => void speakScript()}
+                disabled={speaking || !script.trim()}
+                onClick={() => void handleSpeakNow()}
                 className="rounded-full gap-2"
               >
                 {speaking ? (
@@ -538,6 +571,7 @@ export function BotMonitorPanel({
                   hasBotRecord,
                   botStatus,
                   isLive,
+                  hasScript: Boolean(script.trim()),
                 })}
               </span>
             </div>

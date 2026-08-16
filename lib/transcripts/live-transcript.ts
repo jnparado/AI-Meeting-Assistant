@@ -83,9 +83,13 @@ async function appendLiveConversationMetadata(
   const metadata = (bot.metadata as Record<string, unknown> | null) ?? {};
   const prior =
     (metadata.live_conversation as LiveConversationEntry[] | undefined) ?? [];
+  const speaker = segment.speaker?.trim() || "Speaker";
+  const text = segment.text?.trim() ?? "";
+  if (!text) return;
+
   const entry: LiveConversationEntry = {
-    speaker: segment.speaker ?? "Speaker",
-    text: segment.text,
+    speaker,
+    text,
     at: new Date().toISOString(),
   };
   const last = prior[prior.length - 1];
@@ -126,6 +130,12 @@ export async function appendLiveTranscriptSegment(
     return { meetingId };
   }
 
+  const speaker = segment.speaker?.trim() || "Speaker";
+  const text = segment.text?.trim() ?? "";
+  if (!text) {
+    return { meetingId };
+  }
+
   await appendLiveConversationMetadata(supabase, externalBotId, segment);
 
   const userId = await resolveTranscriptUserId(
@@ -145,12 +155,14 @@ export async function appendLiveTranscriptSegment(
 
   const prior = (existing?.segments as TranscriptSegment[] | null) ?? [];
   const last = prior[prior.length - 1];
-  if (last?.speaker === segment.speaker && last?.text === segment.text) {
+  if (last?.speaker === speaker && last?.text === text) {
     return { meetingId };
   }
 
-  const segments = [...prior, segment];
-  const fullText = segments.map((s) => `${s.speaker}: ${s.text}`).join("\n");
+  const segments = [...prior, { ...segment, speaker, text }];
+  const fullText = segments
+    .map((s) => `${s.speaker?.trim() || "Speaker"}: ${s.text}`)
+    .join("\n");
 
   await supabase.from("transcripts").upsert(
     {

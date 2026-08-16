@@ -4,15 +4,14 @@ import {
   markBotSpeechDelivered,
   peekBotSpeech,
 } from "@/lib/voice-agent/speech-queue";
+import { resolveVoiceAgentBotId } from "@/lib/voice-agent/resolve-voice-agent-bot";
 import { verifyVoiceAgentToken } from "@/lib/voice-agent/token";
 
-function verifyRequest(request: Request, botId: string | null) {
+async function verifyRequest(request: Request) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
-
-  if (!botId) {
-    return { error: NextResponse.json({ error: "botId is required" }, { status: 400 }) };
-  }
+  const botIdParam = url.searchParams.get("botId")?.trim() ?? null;
+  const botName = url.searchParams.get("botName")?.trim() ?? null;
 
   if (!verifyVoiceAgentToken(token)) {
     return {
@@ -23,25 +22,37 @@ function verifyRequest(request: Request, botId: string | null) {
     };
   }
 
-  return { botId, token };
+  const botId = await resolveVoiceAgentBotId({
+    botId: botIdParam,
+    token,
+    botName,
+  });
+
+  if (!botId) {
+    return {
+      error: NextResponse.json(
+        { error: "No active bot found for this voice agent session." },
+        { status: 404 },
+      ),
+    };
+  }
+
+  return { botId, token, botName };
 }
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const botId = url.searchParams.get("botId")?.trim() ?? null;
-  const verified = verifyRequest(request, botId);
+  const verified = await verifyRequest(request);
   if ("error" in verified && verified.error) return verified.error;
 
   const supabase = createServiceClient();
-  const items = await peekBotSpeech(supabase, verified.botId!);
+  const pending = await peekBotSpeech(supabase, verified.botId!);
+  const items = pending.slice(0, 1);
 
-  return NextResponse.json({ items });
+  return NextResponse.json({ items, botId: verified.botId });
 }
 
 export async function POST(request: Request) {
-  const url = new URL(request.url);
-  const botId = url.searchParams.get("botId")?.trim() ?? null;
-  const verified = verifyRequest(request, botId);
+  const verified = await verifyRequest(request);
   if ("error" in verified && verified.error) return verified.error;
 
   const body = (await request.json()) as { deliveredIds?: string[] };

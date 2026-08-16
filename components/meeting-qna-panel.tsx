@@ -39,6 +39,7 @@ type ChatMessage = {
 type LivePayload = {
   isLive: boolean;
   hasBot: boolean;
+  canSpeak: boolean;
   botName: string | null;
   botStatus: BotStatus | null;
   segments: TranscriptSegment[];
@@ -71,6 +72,7 @@ export function MeetingQnaPanel({
   const [error, setError] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(initialIsLive);
   const [hasBot, setHasBot] = useState(initialHasBot);
+  const [canSpeak, setCanSpeak] = useState(initialHasBot);
   const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
   const [botName, setBotName] = useState<string | null>(null);
   const [segments, setSegments] = useState<TranscriptSegment[]>(initialSegments);
@@ -83,9 +85,10 @@ export function MeetingQnaPanel({
 
   const canAskFromTranscript =
     !hasBot && (hasTranscript || segments.length > 0);
-  const showBotSpeak = hasBot && !hideBotControls;
+  const showBotSpeak = hasBot || canSpeak || isLive;
   const canStopBot =
     showBotSpeak &&
+    !hideBotControls &&
     (botStatus ? LEAVABLE_STATUSES.has(botStatus) : true);
   const displayBotName = botName?.trim() || "the bot";
 
@@ -111,6 +114,7 @@ export function MeetingQnaPanel({
         setPollError(null);
         setIsLive(data.isLive);
         setHasBot(data.hasBot);
+        setCanSpeak(data.canSpeak ?? data.hasBot);
         setBotStatus(data.botStatus);
         setBotName(data.botName);
         setSegments(data.segments ?? []);

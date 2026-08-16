@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getActiveOrganization } from "@/lib/org/server";
 import { loadMeetingForUserSecure } from "@/lib/meetings/load-meeting-for-user";
-import { getRecallVoiceAgentGreeting } from "@/lib/bot/recall-voice-agent";
 import { resolveActiveMeetingBot } from "@/lib/bot/resolve-active-meeting-bot";
+import {
+  isRecallVoiceAgentEnabled,
+  refreshRecallVoiceAgentOutputMedia,
+} from "@/lib/bot/recall-voice-agent";
 import { expandIntroSpeakLines } from "@/lib/transcripts/filter-bot-speech";
 import { enqueueBotSpeechBatch } from "@/lib/voice-agent/speech-queue";
 import { isBotControllable } from "@/lib/bot/bot-control-status";
@@ -78,14 +81,26 @@ export async function POST(
 
   try {
     const botName = (bot.bot_name as string | null) ?? undefined;
-    const greeting = getRecallVoiceAgentGreeting(botName);
-    const lines = expandIntroSpeakLines(text, greeting);
+    const lines = expandIntroSpeakLines(text, "");
     const service = createServiceClient();
     const { ids, lines: queued } = await enqueueBotSpeechBatch(
       service,
       bot.id,
       lines,
     );
+
+    if (bot.external_bot_id && isRecallVoiceAgentEnabled()) {
+      try {
+        await refreshRecallVoiceAgentOutputMedia(
+          String(bot.external_bot_id),
+          botName,
+          String(bot.id),
+        );
+      } catch {
+        /* queue still works if voice page already loaded */
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       ids,

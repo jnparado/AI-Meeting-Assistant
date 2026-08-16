@@ -162,6 +162,7 @@ export async function GET(
     hasActiveBot: canControl,
     canStop: canControl || Boolean(bot?.id),
     canSpeak,
+    botId: bot?.id ? String(bot.id) : null,
     botStatus,
     botName,
     segments,
