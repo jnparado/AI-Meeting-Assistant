@@ -50,7 +50,7 @@ async function scheduleRecallBot(
   }
 
   const googleMeet = getRecallGoogleMeetBotConfig();
-  const voiceExtras = getRecallVoiceAgentExtras(input.botName);
+  const voiceExtras = getRecallVoiceAgentExtras(input.botName, input.botId);
   const realtimeEndpoints = getRecallRealtimeEndpoints();
   const body = {
     meeting_url: input.meetingUrl,

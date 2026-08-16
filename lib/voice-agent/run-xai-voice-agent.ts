@@ -4,6 +4,7 @@ import {
   float32ToPcm16Base64,
   resampleFloat32,
 } from "@/lib/voice-agent/audio-pcm";
+import { getXaiWebSocketSubprotocol } from "@/lib/voice-agent/xai-ws-protocol";
 
 const CHUNK_MS = 100;
 
@@ -20,7 +21,12 @@ type Params = {
   isDisposed: () => boolean;
 };
 
-export function runXaiVoiceAgent(params: Params): () => void {
+export type XaiVoiceAgentControls = {
+  dispose: () => void;
+  speak: (text: string) => void;
+};
+
+export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
   const {
     wsUrl,
     clientSecret,
@@ -37,8 +43,10 @@ export function runXaiVoiceAgent(params: Params): () => void {
   let audioContext: AudioContext | null = null;
   let processor: ScriptProcessorNode | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
+  let silentSink: GainNode | null = null;
   let sessionReady = false;
   let greetingSent = false;
+  let pendingSpeech: string[] = [];
   let playbackQueue: Float32Array[] = [];
   let playing = false;
   let currentSource: AudioBufferSourceNode | null = null;
@@ -85,20 +93,44 @@ export function runXaiVoiceAgent(params: Params): () => void {
     }
   }
 
-  function sendGreeting() {
-    if (!ws || ws.readyState !== WebSocket.OPEN || greetingSent) return;
-    greetingSent = true;
+  function speakExact(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!sessionReady) {
+      pendingSpeech.push(trimmed);
+      return;
+    }
     ws.send(
       JSON.stringify({
         type: "response.create",
         response: {
           modalities: ["audio", "text"],
-          instructions: `Say this greeting exactly, then pause and listen: "${greeting}"`,
+          instructions: `Say exactly the following words and nothing else: ${JSON.stringify(trimmed)}`,
         },
       }),
     );
+    onStatus("speaking");
+    onDetail("Speaking in the meeting…");
+  }
+
+  function sendGreeting() {
+    if (!ws || ws.readyState !== WebSocket.OPEN || greetingSent) return;
+    greetingSent = true;
+    speakExact(greeting);
     onStatus("connected");
     onDetail("Live — introducing himself…");
+  }
+
+  function markSessionReady() {
+    if (sessionReady) return;
+    sessionReady = true;
+    startMicCapture();
+    sendGreeting();
+    for (const text of pendingSpeech) {
+      speakExact(text);
+    }
+    pendingSpeech = [];
   }
 
   function configureSession() {
@@ -113,7 +145,7 @@ export function runXaiVoiceAgent(params: Params): () => void {
             input: { format: { type: "audio/pcm", rate: XAI_PCM_SAMPLE_RATE } },
             output: { format: { type: "audio/pcm", rate: XAI_PCM_SAMPLE_RATE } },
           },
-          turn_detection: { type: "server_vad" },
+          turn_detection: { type: "server_vad", silence_duration_ms: 600 },
         },
       }),
     );
@@ -122,7 +154,7 @@ export function runXaiVoiceAgent(params: Params): () => void {
   async function start() {
     try {
       onDetail("Connecting to meeting audio…");
-      audioContext = new AudioContext({ sampleRate: XAI_PCM_SAMPLE_RATE });
+      audioContext = new AudioContext();
       captureRate = audioContext.sampleRate;
       if (audioContext.state === "suspended") {
         await audioContext.resume();
@@ -140,11 +172,12 @@ export function runXaiVoiceAgent(params: Params): () => void {
       if (isDisposed()) return;
 
       onDetail("Connecting to Grok Voice…");
-      ws = new WebSocket(wsUrl, [`xai-client-secret.${clientSecret}`]);
+      ws = new WebSocket(wsUrl, [getXaiWebSocketSubprotocol(clientSecret)]);
 
       ws.onopen = () => {
         if (isDisposed()) return;
         onDetail("Starting Grok Voice session…");
+        configureSession();
       };
 
       ws.onmessage = (event) => {
@@ -153,7 +186,7 @@ export function runXaiVoiceAgent(params: Params): () => void {
           const msg = JSON.parse(String(event.data)) as {
             type?: string;
             delta?: string;
-            error?: { message?: string };
+            error?: { message?: string; code?: string };
           };
 
           if (msg.type === "error") {
@@ -163,24 +196,24 @@ export function runXaiVoiceAgent(params: Params): () => void {
           }
 
           if (
-            (msg.type === "conversation.created" ||
-              msg.type === "session.created") &&
-            !sessionReady
+            msg.type === "conversation.created" ||
+            msg.type === "session.created"
           ) {
             configureSession();
           }
 
-          if (msg.type === "session.updated" && !sessionReady) {
-            sessionReady = true;
-            startMicCapture();
-            sendGreeting();
+          if (msg.type === "session.updated") {
+            markSessionReady();
           }
 
           if (
             msg.type === "response.output_audio.delta" ||
-            msg.type === "response.audio.delta"
+            msg.type === "response.audio.delta" ||
+            msg.type === "response.output_audio_transcript.delta"
           ) {
-            if (msg.delta) playAudio(msg.delta);
+            if (msg.delta && msg.type.includes("audio")) {
+              playAudio(msg.delta);
+            }
             onStatus("speaking");
             onDetail("Speaking in the meeting…");
           }
@@ -205,10 +238,17 @@ export function runXaiVoiceAgent(params: Params): () => void {
         }
       };
 
-      ws.onclose = () => {
-        if (!isDisposed() && !greetingSent) {
+      ws.onclose = (event) => {
+        if (isDisposed()) return;
+        if (!greetingSent) {
           onStatus("error");
-          onDetail("Grok Voice connection closed");
+          const reason = event.reason?.trim();
+          onDetail(
+            reason ||
+              (event.code === 1008
+                ? "Grok Voice rejected the connection (check xAI API key / voice access)."
+                : `Grok Voice connection closed (${event.code}).`),
+          );
         }
       };
     } catch (err) {
@@ -224,6 +264,8 @@ export function runXaiVoiceAgent(params: Params): () => void {
 
     source = audioContext.createMediaStreamSource(mediaStream);
     processor = audioContext.createScriptProcessor(4096, 1, 1);
+    silentSink = audioContext.createGain();
+    silentSink.gain.value = 0;
 
     let buffers: Float32Array[] = [];
     let totalSamples = 0;
@@ -269,17 +311,22 @@ export function runXaiVoiceAgent(params: Params): () => void {
     };
 
     source.connect(processor);
-    processor.connect(audioContext.destination);
+    processor.connect(silentSink);
+    silentSink.connect(audioContext.destination);
   }
 
   void start();
 
-  return () => {
-    stopPlayback();
-    processor?.disconnect();
-    source?.disconnect();
-    mediaStream?.getTracks().forEach((t) => t.stop());
-    ws?.close();
-    void audioContext?.close();
+  return {
+    dispose: () => {
+      stopPlayback();
+      processor?.disconnect();
+      source?.disconnect();
+      silentSink?.disconnect();
+      mediaStream?.getTracks().forEach((t) => t.stop());
+      ws?.close();
+      void audioContext?.close();
+    },
+    speak: speakExact,
   };
 }

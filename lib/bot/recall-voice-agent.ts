@@ -86,7 +86,10 @@ export function getRecallVoiceAgentVoice(): string {
   return getVoiceAgentProvider() === "xai" ? "eve" : "verse";
 }
 
-export function getRecallVoiceAgentPageUrl(botName?: string): string | null {
+export function getRecallVoiceAgentPageUrl(
+  botName?: string,
+  botId?: string,
+): string | null {
   if (!canUseRecallVoiceAgent()) return null;
 
   const base = getRecallPublicAppUrl().replace(/\/$/, "");
@@ -95,6 +98,7 @@ export function getRecallVoiceAgentPageUrl(botName?: string): string | null {
   if (token) url.searchParams.set("token", token);
   const name = botName?.trim() || getDefaultBotName();
   if (name) url.searchParams.set("botName", name);
+  if (botId?.trim()) url.searchParams.set("botId", botId.trim());
   return url.toString();
 }
 
@@ -115,8 +119,11 @@ export type RecallVoiceAgentExtras = {
   };
 };
 
-export function getRecallVoiceAgentExtras(botName?: string): RecallVoiceAgentExtras {
-  const pageUrl = getRecallVoiceAgentPageUrl(botName);
+export function getRecallVoiceAgentExtras(
+  botName?: string,
+  botId?: string,
+): RecallVoiceAgentExtras {
+  const pageUrl = getRecallVoiceAgentPageUrl(botName, botId);
   if (!pageUrl) return {};
 
   return {

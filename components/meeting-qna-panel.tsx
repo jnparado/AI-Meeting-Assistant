@@ -118,6 +118,28 @@ export function MeetingQnaPanel({
     setInput("");
 
     try {
+      if (isLive) {
+        const res = await fetch(`/api/meetings/${meetingId}/speak`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: trimmed }),
+        });
+        const data = (await res.json()) as { text?: string; error?: string };
+        if (!res.ok) {
+          setError(data.error ?? "Could not send to the bot");
+          return;
+        }
+        setChat((prev) => [
+          ...prev,
+          {
+            id: `a-${Date.now()}`,
+            role: "assistant",
+            text: data.text ?? trimmed,
+          },
+        ]);
+        return;
+      }
+
       const res = await fetch(`/api/meetings/${meetingId}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -158,7 +180,7 @@ export function MeetingQnaPanel({
         </CardTitle>
         <CardDescription>
           {isLive
-            ? "Live transcript updates below. Type a message and Send — MeetMind replies from the conversation so far."
+            ? "Live transcript updates below. Type a message and Send — the bot speaks your exact words in the meeting."
             : canInteract
               ? "Questions are answered from the transcript (speakers, decisions, action items)."
               : "Send your AI assistant to the meeting to see live conversation here."}
@@ -249,32 +271,41 @@ export function MeetingQnaPanel({
           </div>
         )}
 
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void sendMessage(input);
-          }}
-        >
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              canInteract
-                ? "Ask MeetMind or tell it what to focus on…"
-                : "Waiting for the AI assistant to join…"
-            }
-            className="rounded-full"
-            disabled={loading || !canInteract}
-          />
-          <Button
-            type="submit"
-            disabled={loading || !canInteract || !input.trim()}
-            className="shrink-0 rounded-full"
+        {canInteract ? (
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void sendMessage(input);
+            }}
           >
-            {loading ? <Loader2 className="size-4 animate-spin" /> : "Send"}
-          </Button>
-        </form>
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={
+                isLive
+                  ? "Type what the bot should say in the meeting…"
+                  : "Ask MeetMind or tell it what to focus on…"
+              }
+              className="rounded-full"
+              disabled={loading}
+            />
+            <Button
+              type="submit"
+              disabled={loading || !input.trim()}
+              className="shrink-0 rounded-full"
+            >
+              {loading ? <Loader2 className="size-4 animate-spin" /> : "Send"}
+            </Button>
+          </form>
+        ) : (
+          <div
+            className="rounded-full border border-border/60 bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground"
+            aria-hidden
+          >
+            Waiting for the AI assistant to join…
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-destructive" role="alert">

@@ -8,23 +8,31 @@ import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
 export default async function JoinPage({
   searchParams,
 }: {
-  searchParams: Promise<{ url?: string }>;
+  searchParams: Promise<{ url?: string; auto?: string }>;
 }) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login?next=/join");
-  }
-
   const params = await searchParams;
+  const meetUrl = params.url?.trim() ?? "";
+  const autoJoin = params.auto !== "0" && Boolean(meetUrl);
+  const loginNext = meetUrl
+    ? `/join?url=${encodeURIComponent(meetUrl)}&auto=1`
+    : "/join";
+
+  if (!user) {
+    redirect(`/login?next=${encodeURIComponent(loginNext)}`);
+  }
 
   return (
     <MarketingShell showAuthLinks={false} headerRight={<HeaderUserArea />}>
       <main className="mx-auto flex max-w-lg flex-col items-center px-4 pb-20 pt-6 md:pt-12">
-        <SimpleAiJoin initialUrl={params.url ?? ""} />
+        <SimpleAiJoin
+          initialUrl={meetUrl}
+          autoJoin={autoJoin}
+        />
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Need a new meeting?{" "}
           <a

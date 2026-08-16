@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bot, Link2, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,12 +13,15 @@ import { DEFAULT_BOT_NAME } from "@/lib/bot/default-bot-name";
 type Props = {
   initialUrl?: string;
   initialBotName?: string;
+  /** When true and initialUrl is set, join immediately without clicking Send. */
+  autoJoin?: boolean;
   className?: string;
 };
 
 export function SimpleAiJoin({
   initialUrl = "",
   initialBotName = DEFAULT_BOT_NAME,
+  autoJoin = false,
   className,
 }: Props) {
   const [meetingUrl, setMeetingUrl] = useState(initialUrl);
@@ -26,12 +29,12 @@ export function SimpleAiJoin({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+  const autoJoinStarted = useRef(false);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const url = meetingUrl.trim();
-    const name = botName.trim();
-    if (!url || !name) return;
+  async function joinMeeting(url: string, name: string) {
+    const trimmedUrl = url.trim();
+    const trimmedName = name.trim();
+    if (!trimmedUrl || !trimmedName) return;
 
     setLoading(true);
     setMessage(null);
@@ -40,7 +43,7 @@ export function SimpleAiJoin({
     const res = await fetch("/api/meeting-bots/join-now", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ meetingUrl: url, botName: name }),
+      body: JSON.stringify({ meetingUrl: trimmedUrl, botName: trimmedName }),
       credentials: "include",
     });
 
@@ -50,7 +53,8 @@ export function SimpleAiJoin({
     if (res.status === 401) {
       setIsError(true);
       setMessage(String(data.error ?? "Please sign in again."));
-      window.location.href = `/login?next=${encodeURIComponent("/join")}`;
+      const next = `/join?url=${encodeURIComponent(trimmedUrl)}&auto=1`;
+      window.location.href = `/login?next=${encodeURIComponent(next)}`;
       return;
     }
 
@@ -62,7 +66,6 @@ export function SimpleAiJoin({
 
     const meetingId =
       typeof data.meetingId === "string" ? data.meetingId : undefined;
-    const botNameUsed = botName;
     const provider =
       typeof data.provider === "string" ? data.provider : "simulation";
     const alreadyActive = data.alreadyActive === true;
@@ -70,7 +73,7 @@ export function SimpleAiJoin({
     if (meetingId) {
       const params = new URLSearchParams({
         joined: alreadyActive ? "existing" : "1",
-        bot: botNameUsed,
+        bot: trimmedName,
         mode: provider,
       });
       window.location.assign(`/dashboard/meetings/${meetingId}?${params}`);
@@ -81,8 +84,19 @@ export function SimpleAiJoin({
     setMessage(
       typeof data.message === "string"
         ? data.message
-        : `“${botNameUsed}” is joining the meeting. You stay out of the call — admit the bot from the lobby if you’re the host.`,
+        : `“${trimmedName}” is joining the meeting. Admit the bot from the lobby if you’re the host.`,
     );
+  }
+
+  useEffect(() => {
+    if (!autoJoin || !initialUrl.trim() || autoJoinStarted.current) return;
+    autoJoinStarted.current = true;
+    void joinMeeting(initialUrl, initialBotName);
+  }, [autoJoin, initialUrl, initialBotName]);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await joinMeeting(meetingUrl, botName);
   }
 
   const sqlEditorUrl = getSupabaseSqlEditorUrl();

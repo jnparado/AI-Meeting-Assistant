@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { runXaiVoiceAgent } from "@/lib/voice-agent/run-xai-voice-agent";
 
 type Props = {
   token: string | null;
   botName?: string | null;
+  botId?: string | null;
 };
 
 type AgentStatus = "connecting" | "connected" | "speaking" | "listening" | "error";
 
 const DEFAULT_GREETING =
   "Hi, my name is John from the AdSense team. Nice to meet you.";
+
+const BOT_AVATAR_LOGO = "/bot-agent/admob-logo.png";
 
 type SessionPayload = {
   mode?: "websocket" | "webrtc";
@@ -26,27 +29,75 @@ type SessionPayload = {
   error?: string;
 };
 
-function sendGreeting(dc: RTCDataChannel, greeting: string) {
+function sendExactSpeech(dc: RTCDataChannel, text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
   dc.send(
     JSON.stringify({
       type: "response.create",
       response: {
         modalities: ["audio", "text"],
-        instructions: `Say this greeting exactly, then pause and listen for others in the meeting: "${greeting}"`,
+        instructions: `Say exactly the following words and nothing else: ${JSON.stringify(trimmed)}`,
       },
     }),
   );
+}
+
+function sendGreeting(dc: RTCDataChannel, greeting: string) {
+  sendExactSpeech(dc, greeting);
 }
 
 function isPeerActive(pc: RTCPeerConnection | null, disposed: boolean): pc is RTCPeerConnection {
   return Boolean(pc && !disposed && pc.signalingState !== "closed");
 }
 
-export function VoiceAgentClient({ token, botName }: Props) {
+export function VoiceAgentClient({ token, botName, botId }: Props) {
   const [status, setStatus] = useState<AgentStatus>("connecting");
   const [detail, setDetail] = useState("Starting voice agent…");
   const [displayName, setDisplayName] = useState("John");
   const [teamLabel, setTeamLabel] = useState("AdSense team");
+  const speakRef = useRef<(text: string) => void>(() => {});
+  const agentReadyRef = useRef(false);
+
+  useEffect(() => {
+    agentReadyRef.current =
+      status === "connected" ||
+      status === "listening" ||
+      status === "speaking";
+  }, [status]);
+
+  useEffect(() => {
+    if (!botId?.trim() || !token) return;
+
+    let cancelled = false;
+
+    async function pollSpeechQueue() {
+      if (!agentReadyRef.current) return;
+      try {
+        const params = new URLSearchParams({
+          botId: botId!.trim(),
+          token: token ?? "",
+        });
+        const res = await fetch(`/api/voice-agent/speech-queue?${params}`);
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { items?: { text?: string }[] };
+        for (const item of data.items ?? []) {
+          if (item.text?.trim()) {
+            speakRef.current(item.text);
+          }
+        }
+      } catch {
+        /* ignore transient poll errors */
+      }
+    }
+
+    void pollSpeechQueue();
+    const id = window.setInterval(() => void pollSpeechQueue(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [botId, token]);
 
   useEffect(() => {
     let disposed = false;
@@ -57,6 +108,16 @@ export function VoiceAgentClient({ token, botName }: Props) {
     let dataChannel: RTCDataChannel | null = null;
     let greetingSent = false;
     let greetingText = DEFAULT_GREETING;
+
+    speakRef.current = (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      if (dataChannel?.readyState === "open") {
+        sendExactSpeech(dataChannel, trimmed);
+        safe.setStatus("speaking");
+        safe.setDetail("Speaking in the meeting…");
+      }
+    };
 
     const safe = {
       setStatus: (value: AgentStatus) => {
@@ -203,7 +264,7 @@ export function VoiceAgentClient({ token, botName }: Props) {
             throw new Error("Grok Voice session missing connection details.");
           }
 
-          cleanupXai = runXaiVoiceAgent({
+          const controls = runXaiVoiceAgent({
             wsUrl: probe.wsUrl,
             clientSecret: probe.clientSecret,
             voice: probe.voice ?? "eve",
@@ -213,6 +274,8 @@ export function VoiceAgentClient({ token, botName }: Props) {
             onDetail: safe.setDetail,
             isDisposed: () => disposed,
           });
+          speakRef.current = controls.speak;
+          cleanupXai = controls.dispose;
           return;
         }
 
@@ -249,7 +312,7 @@ export function VoiceAgentClient({ token, botName }: Props) {
       </div>
 
       <div
-        className={`flex h-24 w-24 items-center justify-center rounded-full border-2 ${
+        className={`relative flex h-32 w-32 items-center justify-center rounded-full border-2 p-1 ${
           status === "speaking"
             ? "border-sky-400/80 bg-sky-500/10 animate-pulse"
             : status === "listening" || status === "connected"
@@ -259,15 +322,20 @@ export function VoiceAgentClient({ token, botName }: Props) {
                 : "border-white/30 bg-white/5"
         }`}
       >
-        <span className="text-3xl" aria-hidden>
-          {status === "speaking"
-            ? "🎙"
-            : status === "listening" || status === "connected"
-              ? "👂"
-              : status === "error"
-                ? "!"
-                : "…"}
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={BOT_AVATAR_LOGO}
+          alt={`${displayName} avatar`}
+          className="h-full w-full rounded-full object-contain bg-white p-2"
+        />
+        {status === "error" && (
+          <span
+            className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-red-500 text-sm font-bold text-white"
+            aria-hidden
+          >
+            !
+          </span>
+        )}
       </div>
 
       <p
