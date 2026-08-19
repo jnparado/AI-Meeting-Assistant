@@ -23,15 +23,10 @@ function buildSessionPayload(botName?: string | null) {
     type: "realtime" as const,
     model,
     instructions,
-    turn_detection: { type: "server_vad" as const },
     audio: {
-      input: {
-        turn_detection: { type: "server_vad" as const },
-      },
       output: { voice },
     },
     voice,
-    input_audio_transcription: { model: "whisper-1" },
   };
 }
 
@@ -84,8 +79,6 @@ async function createLegacyRealtimeSession(
       model: payload.model,
       voice: payload.voice,
       instructions: payload.instructions,
-      turn_detection: payload.turn_detection,
-      input_audio_transcription: payload.input_audio_transcription,
     }),
   });
 

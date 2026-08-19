@@ -1,13 +1,12 @@
 import {
   XAI_PCM_SAMPLE_RATE,
   base64Pcm16ToFloat32,
-  float32ToPcm16Base64,
-  resampleFloat32,
 } from "@/lib/voice-agent/audio-pcm";
-import { buildHumanSpeechDelivery } from "@/lib/voice-agent/human-speech-delivery";
+import {
+  buildHumanSpeechDelivery,
+  TELEPROMPTER_READY_DETAIL,
+} from "@/lib/voice-agent/human-speech-delivery";
 import { getXaiWebSocketSubprotocol } from "@/lib/voice-agent/xai-ws-protocol";
-
-const CHUNK_MS = 100;
 
 type Status = "connecting" | "connected" | "speaking" | "listening" | "error";
 
@@ -42,11 +41,7 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
   } = params;
 
   let ws: WebSocket | null = null;
-  let mediaStream: MediaStream | null = null;
   let audioContext: AudioContext | null = null;
-  let processor: ScriptProcessorNode | null = null;
-  let source: MediaStreamAudioSourceNode | null = null;
-  let silentSink: GainNode | null = null;
   let sessionReady = false;
   let greetingSent = false;
   let pendingSpeech: { text: string; onDone?: () => void }[] = [];
@@ -60,7 +55,6 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
   let playing = false;
   let currentSource: AudioBufferSourceNode | null = null;
   let playbackGain: GainNode | null = null;
-  let captureRate = XAI_PCM_SAMPLE_RATE;
 
   function playNext() {
     if (!audioContext || playbackQueue.length === 0) {
@@ -155,7 +149,7 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     if (!greeting.trim()) {
       greetingSent = true;
       onStatus("listening");
-      onDetail("Live — ready when you click Speak now.");
+      onDetail(TELEPROMPTER_READY_DETAIL);
       return;
     }
     if (!ws || ws.readyState !== WebSocket.OPEN || greetingSent) return;
@@ -168,7 +162,6 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
   function markSessionReady() {
     if (sessionReady) return;
     sessionReady = true;
-    startMicCapture();
     sendGreeting();
     for (const item of pendingSpeech) {
       speakExact(item.text, { onDone: item.onDone });
@@ -188,7 +181,6 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
             input: { format: { type: "audio/pcm", rate: XAI_PCM_SAMPLE_RATE } },
             output: { format: { type: "audio/pcm", rate: XAI_PCM_SAMPLE_RATE } },
           },
-          turn_detection: { type: "server_vad", silence_duration_ms: 900 },
         },
       }),
     );
@@ -196,9 +188,8 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
 
   async function start() {
     try {
-      onDetail("Connecting to meeting audio…");
+      onDetail("Connecting to Grok Voice…");
       audioContext = new AudioContext();
-      captureRate = audioContext.sampleRate;
       if (audioContext.state === "suspended") {
         await audioContext.resume();
       }
@@ -207,18 +198,8 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
       playbackGain.gain.value = outputGain;
       playbackGain.connect(audioContext.destination);
 
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-
       if (isDisposed()) return;
 
-      onDetail("Connecting to Grok Voice…");
       ws = new WebSocket(wsUrl, [getXaiWebSocketSubprotocol(clientSecret)]);
 
       ws.onopen = () => {
@@ -233,8 +214,22 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
           const msg = JSON.parse(String(event.data)) as {
             type?: string;
             delta?: string;
+            response?: { id?: string };
             error?: { message?: string; code?: string };
           };
+
+          if (msg.type === "response.created" && !speakingScript) {
+            const responseId = msg.response?.id;
+            if (responseId) {
+              ws?.send(
+                JSON.stringify({
+                  type: "response.cancel",
+                  response_id: responseId,
+                }),
+              );
+            }
+            return;
+          }
 
           if (msg.type === "error") {
             onStatus("error");
@@ -275,7 +270,7 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
             currentScriptDone = null;
             flushScriptedSpeech();
             onStatus("listening");
-            onDetail("Listening — ask Jerome a question.");
+            onDetail(TELEPROMPTER_READY_DETAIL);
           }
         } catch {
           /* ignore */
@@ -310,72 +305,12 @@ export function runXaiVoiceAgent(params: Params): XaiVoiceAgentControls {
     }
   }
 
-  function startMicCapture() {
-    if (!audioContext || !mediaStream || !ws || processor) return;
-
-    source = audioContext.createMediaStreamSource(mediaStream);
-    processor = audioContext.createScriptProcessor(4096, 1, 1);
-    silentSink = audioContext.createGain();
-    silentSink.gain.value = 0;
-
-    let buffers: Float32Array[] = [];
-    let totalSamples = 0;
-    const chunkSamples = Math.floor((XAI_PCM_SAMPLE_RATE * CHUNK_MS) / 1000);
-
-    processor.onaudioprocess = (event) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN || !sessionReady) return;
-
-      const input = event.inputBuffer.getChannelData(0);
-      const resampled = resampleFloat32(
-        new Float32Array(input),
-        captureRate,
-        XAI_PCM_SAMPLE_RATE,
-      );
-      buffers.push(resampled);
-      totalSamples += resampled.length;
-
-      while (totalSamples >= chunkSamples) {
-        const chunk = new Float32Array(chunkSamples);
-        let offset = 0;
-        while (offset < chunkSamples && buffers.length > 0) {
-          const buf = buffers[0];
-          const need = chunkSamples - offset;
-          if (buf.length <= need) {
-            chunk.set(buf, offset);
-            offset += buf.length;
-            totalSamples -= buf.length;
-            buffers.shift();
-          } else {
-            chunk.set(buf.subarray(0, need), offset);
-            buffers[0] = buf.subarray(need);
-            offset += need;
-            totalSamples -= need;
-          }
-        }
-        ws.send(
-          JSON.stringify({
-            type: "input_audio_buffer.append",
-            audio: float32ToPcm16Base64(chunk),
-          }),
-        );
-      }
-    };
-
-    source.connect(processor);
-    processor.connect(silentSink);
-    silentSink.connect(audioContext.destination);
-  }
-
   void start();
 
   return {
     dispose: () => {
       stopPlayback();
       playbackGain?.disconnect();
-      processor?.disconnect();
-      source?.disconnect();
-      silentSink?.disconnect();
-      mediaStream?.getTracks().forEach((t) => t.stop());
       ws?.close();
       void audioContext?.close();
     },

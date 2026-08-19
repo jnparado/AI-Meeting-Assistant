@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BotAgentAvatar } from "@/components/bot-agent-avatar";
-import { buildHumanSpeechDelivery } from "@/lib/voice-agent/human-speech-delivery";
+import { buildHumanSpeechDelivery, TELEPROMPTER_READY_DETAIL } from "@/lib/voice-agent/human-speech-delivery";
 import { runXaiVoiceAgent } from "@/lib/voice-agent/run-xai-voice-agent";
 
 type Props = {
@@ -204,7 +204,7 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
       greetingSent = true;
       if (!greetingText.trim()) {
         safe.setStatus("listening");
-        safe.setDetail("Live — ready when you click Speak now.");
+        safe.setDetail(TELEPROMPTER_READY_DETAIL);
         return;
       }
       sendGreeting(dataChannel, greetingText);
@@ -270,7 +270,7 @@ export function VoiceAgentClient({ token, botName, botId }: Props) {
             webrtcSpeechDone?.();
             webrtcSpeechDone = null;
             safe.setStatus("listening");
-            safe.setDetail("Listening — ask Jerome a question.");
+            safe.setDetail(TELEPROMPTER_READY_DETAIL);
           }
         } catch {
           /* ignore */

@@ -8,6 +8,7 @@ import {
 } from "@/lib/ai/summarize-meeting";
 import type { TranscriptSegment } from "@/lib/types/database";
 import { hasRecall } from "@/lib/env";
+import { tryNotifyNoShowForMeeting } from "@/lib/follow-up/no-show";
 
 export async function POST(request: Request) {
   const secret = request.headers.get("x-recall-webhook-secret");
@@ -70,6 +71,31 @@ export async function POST(request: Request) {
       await query.eq("id", botId);
     } else if (externalId) {
       await query.eq("external_bot_id", externalId);
+    }
+
+    const terminal = new Set([
+      "meeting_ended",
+      "completed",
+      "failed",
+      "cancelled",
+    ]);
+    if (terminal.has(mapped)) {
+      const lookup = botId
+        ? supabase.from("meeting_bots").select("meeting_id").eq("id", botId)
+        : externalId
+          ? supabase
+              .from("meeting_bots")
+              .select("meeting_id")
+              .eq("external_bot_id", externalId)
+          : null;
+      if (lookup) {
+        const { data: row } = await lookup.maybeSingle();
+        if (row?.meeting_id) {
+          void tryNotifyNoShowForMeeting(String(row.meeting_id)).catch((err) => {
+            console.error("tryNotifyNoShowForMeeting:", err);
+          });
+        }
+      }
     }
   }
 
